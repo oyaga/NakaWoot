@@ -1,0 +1,8 @@
+node_modules
+frontend
+.git
+.vscode
+.gemini
+coverage
+dist
+build
