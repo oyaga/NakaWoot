@@ -53,6 +53,12 @@ func UploadFile(c *gin.Context) {
 		mimeType = detectMimeType(ext)
 	}
 
+	// SEGURANÇA: Validar MIME type permitido
+	if !isAllowedMimeType(mimeType) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("File type not allowed: %s", mimeType)})
+		return
+	}
+
 	// Gerar nome único
 	ext := filepath.Ext(header.Filename)
 	if ext == "" {
@@ -105,6 +111,47 @@ func UploadFile(c *gin.Context) {
 		FileSize: int64(len(data)),
 		MimeType: mimeType,
 	})
+}
+
+// isAllowedMimeType valida se o MIME type é permitido
+func isAllowedMimeType(mimeType string) bool {
+	allowedTypes := []string{
+		// Imagens
+		"image/jpeg",
+		"image/png",
+		"image/gif",
+		"image/webp",
+		// Vídeos
+		"video/mp4",
+		"video/quicktime",
+		"video/webm",
+		// Áudios
+		"audio/mpeg",
+		"audio/ogg",
+		"audio/wav",
+		"audio/aac",
+		"audio/webm",
+		// Documentos
+		"application/pdf",
+		"application/msword",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"application/vnd.ms-excel",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		"application/vnd.openxmlformats-officedocument.presentationml.presentation",
+		// Compactados
+		"application/zip",
+		"application/x-rar-compressed",
+		// Texto
+		"text/plain",
+	}
+
+	for _, allowed := range allowedTypes {
+		if mimeType == allowed {
+			return true
+		}
+	}
+
+	return false
 }
 
 // detectMimeType detecta MIME type pela extensão

@@ -2,5 +2,8 @@ node_modules
 .next
 .git
 .vscode
+.env
+.env.local
+.env*.local
 build
 dist

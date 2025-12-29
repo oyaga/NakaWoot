@@ -1,125 +1,86 @@
 package handler
 
 import (
-	"log"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-// ServeMedia serve arquivos de mídia com Content-Type correto
+// ServeMedia serve arquivos de mídia com proteção contra Path Traversal
 func ServeMedia(c *gin.Context) {
 	// Obter o nome do arquivo da URL
 	fileName := c.Param("filename")
 	if fileName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "filename is required"})
+		fileName = c.Query("file")
+	}
+
+	if fileName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Filename is required"})
 		return
 	}
 
-	// Obter caminho base de mídia
-	mediaPath := os.Getenv("MEDIA_STORAGE_PATH")
-	if mediaPath == "" {
-		mediaPath = "./media"
-	}
-
-	// Construir caminho completo do arquivo
-	filePath := filepath.Join(mediaPath, fileName)
-
-	// Verificar se arquivo existe
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		log.Printf("[ServeMedia] File not found: %s", filePath)
-		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+	// SEGURANÇA: Validar o nome do arquivo para prevenir Path Traversal
+	if !isValidFileName(fileName) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid filename"})
 		return
 	}
 
-	// Ler arquivo
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		log.Printf("[ServeMedia] Error reading file %s: %v", filePath, err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read file"})
+	// Path do arquivo
+	basePath := "./media"
+	fullPath := filepath.Join(basePath, fileName)
+
+	// SEGURANÇA: Garantir que o caminho final está dentro do diretório base
+	cleanedPath := filepath.Clean(fullPath)
+	if !strings.HasPrefix(cleanedPath, filepath.Clean(basePath)) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}
 
-	// Detectar MIME type pela extensão
-	mimeType := getMimeTypeFromExtension(filepath.Ext(fileName))
-
-	// Se não conseguiu detectar pela extensão, usar detecção por conteúdo
-	if mimeType == "" {
-		mimeType = http.DetectContentType(data)
-	}
-
-	// Log para debug
-	log.Printf("[ServeMedia] Serving file: %s, MIME: %s, Size: %d bytes", fileName, mimeType, len(data))
-
-	// Definir headers de resposta
-	c.Header("Content-Type", mimeType)
-	c.Header("Content-Length", string(len(data)))
-	c.Header("Cache-Control", "public, max-age=31536000") // Cache de 1 ano
-	c.Header("Access-Control-Allow-Origin", "*")
-
-	// Enviar arquivo
-	c.Data(http.StatusOK, mimeType, data)
+	// Servir o arquivo
+	c.File(cleanedPath)
 }
 
-// getMimeTypeFromExtension retorna o MIME type baseado na extensão do arquivo
-func getMimeTypeFromExtension(ext string) string {
-	ext = strings.ToLower(ext)
-
-	mimeTypes := map[string]string{
-		// Imagens
-		".jpg":  "image/jpeg",
-		".jpeg": "image/jpeg",
-		".png":  "image/png",
-		".gif":  "image/gif",
-		".webp": "image/webp",
-		".bmp":  "image/bmp",
-		".svg":  "image/svg+xml",
-		".ico":  "image/x-icon",
-
-		// Vídeos
-		".mp4":  "video/mp4",
-		".webm": "video/webm",
-		".avi":  "video/x-msvideo",
-		".mov":  "video/quicktime",
-		".wmv":  "video/x-ms-wmv",
-		".flv":  "video/x-flv",
-		".mkv":  "video/x-matroska",
-
-		// Áudios
-		".mp3":  "audio/mpeg",
-		".ogg":  "audio/ogg",
-		".wav":  "audio/wav",
-		".m4a":  "audio/mp4",
-		".aac":  "audio/aac",
-		".flac": "audio/flac",
-		".wma":  "audio/x-ms-wma",
-		".opus": "audio/opus",
-
-		// Documentos
-		".pdf":  "application/pdf",
-		".doc":  "application/msword",
-		".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-		".xls":  "application/vnd.ms-excel",
-		".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-		".ppt":  "application/vnd.ms-powerpoint",
-		".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-		".txt":  "text/plain",
-		".csv":  "text/csv",
-
-		// Arquivos compactados
-		".zip":  "application/zip",
-		".rar":  "application/x-rar-compressed",
-		".7z":   "application/x-7z-compressed",
-		".tar":  "application/x-tar",
-		".gz":   "application/gzip",
+// isValidFileName valida o nome do arquivo para prevenir Path Traversal
+func isValidFileName(fileName string) bool {
+	// Não permitir:
+	// - Path traversal patterns (../)
+	// - Caminhos absolutos
+	// - Caracteres especiais perigosos
+	if strings.Contains(fileName, "..") {
+		return false
+	}
+	if strings.Contains(fileName, "/") && !isValidPath(fileName) {
+		return false
+	}
+	if strings.Contains(fileName, "\\") {
+		return false
+	}
+	if filepath.IsAbs(fileName) {
+		return false
 	}
 
-	if mime, ok := mimeTypes[ext]; ok {
-		return mime
+	// Verificar caracteres perigosos
+	dangerousChars := []string{"\x00", "\n", "\r", "|", "&", ";", "$", "`"}
+	for _, char := range dangerousChars {
+		if strings.Contains(fileName, char) {
+			return false
+		}
 	}
 
-	return "" // Retorna vazio para usar detecção automática
+	return true
+}
+
+// isValidPath verifica se um caminho com / é válido (permitir subdiretórios legítimos)
+func isValidPath(path string) bool {
+	// Permitir apenas caminhos relativos simples como "2024/01/file.jpg"
+	// mas não permitir "..", caminhos absolutos, etc.
+	parts := strings.Split(path, "/")
+	for _, part := range parts {
+		if part == ".." || part == "." || part == "" {
+			return false
+		}
+	}
+	return true
 }

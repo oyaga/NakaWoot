@@ -1,8 +1,16 @@
 node_modules
-frontend
+frontend/node_modules
+frontend/.next
+
 .git
 .vscode
 .gemini
+.env
+.env.local
+.env*.local
+frontend/.env
+frontend/.env.local
+frontend/.env*.local
 coverage
 dist
 build

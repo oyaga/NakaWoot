@@ -4,6 +4,8 @@ import (
 	"mensager-go/internal/api/handler"
 	"mensager-go/internal/api/middleware"
 	"mensager-go/internal/repository"
+	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,9 +19,16 @@ func SetupRoutes(r *gin.Engine) {
 
 	v1 := r.Group("/api/v1")
 	{
+		// Public routes (Authentication & Onboarding)
 		v1.POST("/webhooks/evolution", handler.EvolutionWebhookHandler)
 		v1.GET("/health", handler.HealthCheck)
 		v1.GET("/debug/token", handler.GenerateDebugToken) // Temp debug
+
+		// Onboarding & Auth
+		v1.GET("/installation/check", handler.CheckInstallation)
+		v1.POST("/installation/onboard", handler.CreateInitialAccount)
+		v1.POST("/auth/login", handler.Login)
+		v1.POST("/auth/logout", handler.Logout)
 
 		protected := v1.Group("/")
 		protected.Use(middleware.AuthMiddleware())
@@ -112,4 +121,55 @@ func SetupRoutes(r *gin.Engine) {
 			// Evolution specific endpoints can be mapped here
 		}
 	}
+
+	// IMPORTANTE: Frontend deve ser a última rota (fallback para SPA)
+	// Servir arquivos estáticos do frontend compilado em /manager/dist
+	frontendPath := os.Getenv("FRONTEND_PATH")
+	if frontendPath == "" {
+		frontendPath = "./manager/dist"
+	}
+
+	// Servir arquivos estáticos do Next.js
+	r.Static("/_next", frontendPath+"/_next")
+
+	// Servir favicon
+	r.StaticFile("/favicon.ico", frontendPath+"/favicon.ico")
+
+	// Servir arquivos SVG específicos
+	r.StaticFile("/next.svg", frontendPath+"/next.svg")
+	r.StaticFile("/vercel.svg", frontendPath+"/vercel.svg")
+	r.StaticFile("/file.svg", frontendPath+"/file.svg")
+	r.StaticFile("/globe.svg", frontendPath+"/globe.svg")
+	r.StaticFile("/window.svg", frontendPath+"/window.svg")
+
+	// Rota raiz
+	r.GET("/", func(c *gin.Context) {
+		c.File(frontendPath + "/index.html")
+	})
+
+	// Catch-all para SPA / Static Export
+	r.NoRoute(func(c *gin.Context) {
+		path := c.Request.URL.Path
+
+		// Não servir para rotas da API
+		if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/uploads/") || strings.HasPrefix(path, "/media/") {
+			c.JSON(404, gin.H{"error": "not found"})
+			return
+		}
+
+		// Tentar servir arquivo HTML específico (ex: /login -> /login.html)
+		if _, err := os.Stat(frontendPath + path + ".html"); err == nil {
+			c.File(frontendPath + path + ".html")
+			return
+		}
+
+		// Tentar servir index de diretório (ex: /login/ -> /login/index.html)
+		if _, err := os.Stat(frontendPath + path + "/index.html"); err == nil {
+			c.File(frontendPath + path + "/index.html")
+			return
+		}
+
+		// Servir index.html para qualquer outra rota (SPA Fallback)
+		c.File(frontendPath + "/index.html")
+	})
 }

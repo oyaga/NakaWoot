@@ -21,7 +21,15 @@ type CreateIntegrationInput struct {
 }
 
 // GenerateDebugToken - GET /api/v1/debug/token
+// SEGURANÇA: Este endpoint só deve estar disponível em ambiente de desenvolvimento
 func GenerateDebugToken(c *gin.Context) {
+	// Verificar se está em ambiente de desenvolvimento
+	env := os.Getenv("ENVIRONMENT")
+	if env == "production" || env == "prod" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Debug endpoint not available in production"})
+		return
+	}
+
 	// Only for development/debug
 	userUUID := "d449afb9-e077-4121-b1a1-34878c100cf1"
 
@@ -36,11 +44,15 @@ func GenerateDebugToken(c *gin.Context) {
 	tokenString, err := token.SignedString(secret)
 
 	if err != nil {
-		c.JSON(500, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(200, gin.H{"token": tokenString, "secret_len": len(secret)})
+	c.JSON(http.StatusOK, gin.H{
+		"token":      tokenString,
+		"secret_len": len(secret),
+		"warning":    "This is a development-only endpoint",
+	})
 }
 
 // CreateChatwootInbox - POST /api/v1/accounts/:account_id/inboxes

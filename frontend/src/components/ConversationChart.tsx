@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, TooltipProps } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Button } from '@/components/ui/button'
 import api from '@/lib/api'
 import { toast } from 'sonner'
@@ -11,6 +11,14 @@ import { Calendar } from 'lucide-react'
 interface ConversationDataPoint {
   date: string
   count: number
+}
+
+interface CustomTooltipProps {
+  active?: boolean
+  payload?: Array<{
+    value: number
+    payload: ConversationDataPoint
+  }>
 }
 
 interface ConversationStatsResponse {
@@ -24,10 +32,6 @@ export default function ConversationChart() {
   const [data, setData] = useState<ConversationDataPoint[]>([])
   const [period, setPeriod] = useState<PeriodType>('30')
   const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetchData()
-  }, [period])
 
   const fetchData = async () => {
     try {
@@ -44,11 +48,17 @@ export default function ConversationChart() {
     }
   }
 
-  const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
+  useEffect(() => {
+    fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period])
+
+  const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
     if (active && payload && payload.length) {
+      const dataPoint = payload[0].payload as ConversationDataPoint
       return (
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl">
-          <p className="text-green-200/80 text-xs font-medium mb-1">{payload[0].payload.date}</p>
+          <p className="text-green-200/80 text-xs font-medium mb-1">{dataPoint.date}</p>
           <p className="text-green-50 text-sm font-bold">
             {payload[0].value} {payload[0].value === 1 ? 'conversa' : 'conversas'}
           </p>
