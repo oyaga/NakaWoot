@@ -1,0 +1,58 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      DB_HOST: "supabase-db"
+      DB_PORT: "5432"
+      DB_USER: "supabase_admin"
+      DB_PASSWORD: "your-super-secret-and-long-postgres-password"
+      DB_NAME: "postgres"
+      DB_SSLMODE: "disable"
+      SUPABASE_JWT_SECRET: "your-super-secret-jwt-token-with-at-least-32-characters-long"
+      # Supabase Storage Configuration
+      USE_SUPABASE_STORAGE: "true"
+      SUPABASE_URL: "http://supabase-kong:8000"
+      SUPABASE_SERVICE_ROLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJzZXJ2aWNlX3JvbGUiLAogICAgImlzcyI6ICJzdXBhYmFzZS1kZW1vIiwKICAgICJpYXQiOiAxNjQxNzY5MjAwLAogICAgImV4cCI6IDE3OTk1MzU2MDAKfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q"
+      SUPABASE_STORAGE_BUCKET: "mensager-media"
+      # Fallback para storage local (caso Supabase não esteja disponível)
+      MEDIA_BASE_URL: "http://localhost:8080/media"
+    networks:
+      - default
+      - supabase_network
+      - vps-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-http://localhost:8000}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    ports:
+      - "3003:3000"
+    environment:
+      NODE_ENV: production
+    networks:
+      - default
+    depends_on:
+      - api
+
+networks:
+  default:
+    driver: bridge
+  supabase_network:
+    external: true
+    name: supabase_default
+  vps-net:
+    external: true

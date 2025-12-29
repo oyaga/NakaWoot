@@ -1,0 +1,22 @@
+# Binaries for programs and plugins 
+*.exe 
+*.exe~ 
+*.dll 
+*.so 
+*.dylib 
+ECHO est  ativado.
+# Test binary 
+*.test 
+ECHO est  ativado.
+# Output of the go coverage tool 
+*.out 
+ECHO est  ativado.
+# Environment variables 
+.env 
+ECHO est  ativado.
+# IDE files 
+.vscode/ 
+.idea/ 
+*.swp 
+*.swo 
+*~ 
