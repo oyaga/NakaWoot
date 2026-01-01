@@ -28,7 +28,10 @@ func ListInboxes(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, inboxes)
+	// Retornar no formato compatível com Chatwoot (com payload)
+	c.JSON(http.StatusOK, gin.H{
+		"payload": inboxes,
+	})
 }
 
 // GetInbox retorna uma inbox específica
@@ -142,6 +145,7 @@ func UpdateInbox(c *gin.Context) {
 
 	var input struct {
 		ChannelID                  *uint64 `json:"channel_id"`
+		ChannelType                string  `json:"channel_type"`
 		Name                       string  `json:"name"`
 		AvatarURL                  string  `json:"avatar_url"`
 		GreetingEnabled            bool    `json:"greeting_enabled"`
@@ -162,6 +166,7 @@ func UpdateInbox(c *gin.Context) {
 	// Atualizar campos
 	updates := map[string]interface{}{
 		"name":                          input.Name,
+		"channel_type":                  input.ChannelType,
 		"avatar_url":                    input.AvatarURL,
 		"greeting_enabled":              input.GreetingEnabled,
 		"greeting_message":              input.GreetingMessage,
@@ -202,19 +207,54 @@ func DeleteInbox(c *gin.Context) {
 		return
 	}
 
-	var inbox models.Inbox
-	result := db.Instance.Where("id = ? AND account_id = ?", inboxID, accountID).First(&inbox)
+	// Iniciar transação para garantir atomicidade
+	tx := db.Instance.Begin()
 
-	if result.Error != nil {
+	var inbox models.Inbox
+	if err := tx.Where("id = ? AND account_id = ?", inboxID, accountID).First(&inbox).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusNotFound, gin.H{"error": "Inbox not found"})
 		return
 	}
 
-	result = db.Instance.Delete(&inbox)
-	if result.Error != nil {
+	// 1. Buscar IDs das conversas da inbox
+	var conversationIDs []uint
+	if err := tx.Model(&models.Conversation{}).Where("inbox_id = ?", inboxID).Pluck("id", &conversationIDs).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch conversation IDs"})
+		return
+	}
+
+	// 2. Deletar MessageReadStatus se houver conversas
+	if len(conversationIDs) > 0 {
+		if err := tx.Where("conversation_id IN ?", conversationIDs).Delete(&models.MessageReadStatus{}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete message read statuses"})
+			return
+		}
+	}
+
+	// 3. Deletar mensagens associadas à inbox
+	if err := tx.Where("inbox_id = ?", inboxID).Delete(&models.Message{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete inbox messages"})
+		return
+	}
+
+	// 4. Deletar conversas associadas à inbox
+	if err := tx.Where("inbox_id = ?", inboxID).Delete(&models.Conversation{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete inbox conversations"})
+		return
+	}
+
+	// 5. Deletar a inbox
+	if err := tx.Delete(&inbox).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete inbox"})
 		return
 	}
 
+	tx.Commit()
 	c.JSON(http.StatusOK, gin.H{"message": "Inbox deleted successfully"})
 }

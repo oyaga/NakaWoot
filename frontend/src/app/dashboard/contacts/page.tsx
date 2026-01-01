@@ -82,7 +82,9 @@ export default function ContactsPage() {
   const fetchInboxes = async () => {
     try {
       const response = await api.get('/inboxes')
-      setInboxes(response.data || [])
+      // Suporta formato Chatwoot { payload: [...] } e formato direto [...]
+      const inboxes = response.data.payload || response.data || []
+      setInboxes(inboxes)
     } catch (error) {
       console.error('Erro ao carregar inboxes:', error)
     }
@@ -217,7 +219,6 @@ export default function ContactsPage() {
 
     try {
       setIsSubmitting(true)
-      console.log('Deleting contacts with payload:', { ids: selectedContacts })
       await api.delete('/contacts-batch', { data: { ids: selectedContacts } })
       toast.success('Contatos excluídos com sucesso!')
       setIsDeleteSelectedOpen(false)
@@ -254,8 +255,6 @@ export default function ContactsPage() {
   }
 
   const handleStartConversation = async (contact: Contact) => {
-    console.log('Iniciando conversa com contato:', contact)
-    console.log('Inboxes disponíveis:', inboxes)
 
     if (inboxes.length === 0) {
       toast.error('Nenhuma inbox disponível', {
@@ -269,16 +268,13 @@ export default function ContactsPage() {
 
       // Usar a primeira inbox disponível
       const defaultInbox = inboxes[0]
-      console.log('Usando inbox:', defaultInbox)
 
       const payload = {
         contact_id: contact.id,
         inbox_id: defaultInbox.id
       }
-      console.log('Payload da requisição:', payload)
 
       const response = await api.post('/conversations', payload)
-      console.log('Resposta da API:', response.data)
 
       toast.success('Conversa iniciada com sucesso!', {
         description: `Conversa com ${contact.name} foi criada`
@@ -302,8 +298,8 @@ export default function ContactsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-green-50">Contatos</h1>
-          <p className="text-green-200/60 mt-1">
+          <h1 className="text-3xl font-bold text-foreground">Contatos</h1>
+          <p className="text-muted-foreground mt-1">
             Gerencie seus contatos e clientes
           </p>
         </div>
@@ -328,15 +324,15 @@ export default function ContactsPage() {
           )}
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-green-600 hover:bg-green-500 text-white">
+            <Button className="bg-primary hover:bg-primary text-foreground">
               <Plus className="mr-2 h-4 w-4" />
               Novo Contato
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-slate-900 border-slate-800 text-green-50">
+          <DialogContent className="bg-card border-border text-foreground">
             <DialogHeader>
               <DialogTitle>Criar Novo Contato</DialogTitle>
-              <DialogDescription className="text-green-200/60">
+              <DialogDescription className="text-muted-foreground">
                 Adicione um novo contato ao sistema
               </DialogDescription>
             </DialogHeader>
@@ -348,7 +344,7 @@ export default function ContactsPage() {
                   placeholder="Nome do contato"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="bg-slate-800 border-slate-700 text-green-50"
+                  className="bg-secondary border-border text-foreground"
                 />
               </div>
               <div className="space-y-2">
@@ -359,7 +355,7 @@ export default function ContactsPage() {
                   placeholder="email@exemplo.com"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="bg-slate-800 border-slate-700 text-green-50"
+                  className="bg-secondary border-border text-foreground"
                 />
               </div>
               <div className="space-y-2">
@@ -369,7 +365,7 @@ export default function ContactsPage() {
                   placeholder="+55 11 99999-9999"
                   value={formData.phone_number}
                   onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
-                  className="bg-slate-800 border-slate-700 text-green-50"
+                  className="bg-secondary border-border text-foreground"
                 />
               </div>
               <div className="space-y-2">
@@ -379,7 +375,7 @@ export default function ContactsPage() {
                   placeholder="https://..."
                   value={formData.avatar_url}
                   onChange={(e) => setFormData({ ...formData, avatar_url: e.target.value })}
-                  className="bg-slate-800 border-slate-700 text-green-50"
+                  className="bg-secondary border-border text-foreground"
                 />
               </div>
             </div>
@@ -387,14 +383,14 @@ export default function ContactsPage() {
               <Button
                 variant="outline"
                 onClick={() => setIsCreateDialogOpen(false)}
-                className="border-slate-700 text-green-50"
+                className="border-border text-foreground"
               >
                 Cancelar
               </Button>
               <Button
                 onClick={handleCreateContact}
                 disabled={isSubmitting}
-                className="bg-green-600 hover:bg-green-500 text-white"
+                className="bg-primary hover:bg-primary text-foreground"
               >
                 {isSubmitting ? 'Criando...' : 'Criar Contato'}
               </Button>
@@ -406,7 +402,7 @@ export default function ContactsPage() {
 
       {/* Search Bar */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-400" />
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-primary" />
         <Input
           placeholder="Buscar por nome, email ou telefone..."
           value={searchQuery}
@@ -414,7 +410,7 @@ export default function ContactsPage() {
             setSearchQuery(e.target.value)
             setCurrentPage(1)
           }}
-          className="pl-10 bg-slate-800 border-slate-700 text-green-50 placeholder:text-green-200/40"
+          className="pl-10 bg-secondary border-border text-foreground placeholder:text-muted-foreground"
         />
       </div>
 
@@ -422,23 +418,23 @@ export default function ContactsPage() {
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[...Array(6)].map((_, i) => (
-            <Card key={i} className="bg-slate-900 border-slate-800">
+            <Card key={i} className="bg-card border-border">
               <CardContent className="p-6">
-                <Skeleton className="h-12 w-12 rounded-full mb-4 bg-slate-800" />
-                <Skeleton className="h-4 w-3/4 mb-2 bg-slate-800" />
-                <Skeleton className="h-3 w-1/2 bg-slate-800" />
+                <Skeleton className="h-12 w-12 rounded-full mb-4 bg-secondary" />
+                <Skeleton className="h-4 w-3/4 mb-2 bg-secondary" />
+                <Skeleton className="h-3 w-1/2 bg-secondary" />
               </CardContent>
             </Card>
           ))}
         </div>
       ) : contacts.length === 0 ? (
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-card border-border">
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <User className="h-12 w-12 text-green-500/50 mb-4" />
-            <h3 className="text-lg font-semibold text-green-50 mb-2">
+            <User className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">
               {searchQuery ? 'Nenhum contato encontrado' : 'Nenhum contato cadastrado'}
             </h3>
-            <p className="text-green-200/60 text-sm text-center max-w-md">
+            <p className="text-muted-foreground text-sm text-center max-w-md">
               {searchQuery
                 ? 'Tente buscar com outros termos'
                 : 'Comece criando seu primeiro contato clicando no botão "Novo Contato"'}
@@ -449,7 +445,7 @@ export default function ContactsPage() {
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {contacts.map((contact) => (
-              <Card key={contact.id} className="bg-slate-900 border-slate-800 hover:border-green-500/50 transition-colors relative group">
+              <Card key={contact.id} className="bg-card border-border hover:border-green-500/50 transition-colors relative group">
                  <div className="absolute top-4 left-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity data-[checked=true]:opacity-100" data-checked={selectedContacts.includes(contact.id)}>
                     <Checkbox
                       checked={selectedContacts.includes(contact.id)}
@@ -458,42 +454,42 @@ export default function ContactsPage() {
                           prev.includes(contact.id) ? prev.filter(id => id !== contact.id) : [...prev, contact.id]
                         )
                       }}
-                      className="data-[state=checked]:bg-green-600 border-slate-600 bg-slate-950/50"
+                      className="data-[state=checked]:bg-primary border-border bg-background/50"
                     />
                  </div>
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-4 pl-6">
                     <Avatar className="h-12 w-12">
                       <AvatarImage src={contact.avatar_url} />
-                      <AvatarFallback className="bg-green-600 text-white">
+                      <AvatarFallback className="bg-primary text-foreground">
                         {getInitials(contact.name)}
                       </AvatarFallback>
                     </Avatar>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                          <MoreVertical className="h-4 w-4 text-green-400" />
+                          <MoreVertical className="h-4 w-4 text-primary" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-slate-800 border-slate-700">
+                      <DropdownMenuContent align="end" className="bg-secondary border-border">
                         <DropdownMenuItem
                           onClick={() => handleStartConversation(contact)}
                           disabled={isStartingConversation}
-                          className="text-green-400 focus:bg-slate-700 focus:text-green-400"
+                          className="text-primary focus:bg-secondary focus:text-primary"
                         >
                           <MessageCircle className="mr-2 h-4 w-4" />
                           Iniciar Conversa
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => openEditDialog(contact)}
-                          className="text-green-50 focus:bg-slate-700 focus:text-green-50"
+                          className="text-foreground focus:bg-secondary focus:text-foreground"
                         >
                           <Edit className="mr-2 h-4 w-4" />
                           Editar
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => openDeleteDialog(contact)}
-                          className="text-red-400 focus:bg-slate-700 focus:text-red-400"
+                          className="text-red-400 focus:bg-secondary focus:text-red-400"
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
                           Excluir
@@ -501,23 +497,23 @@ export default function ContactsPage() {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
-                  <h3 className="font-semibold text-green-50 mb-2">{contact.name}</h3>
+                  <h3 className="font-semibold text-foreground mb-2">{contact.name}</h3>
                   <div className="space-y-1 text-sm">
                     {contact.email && (
-                      <div className="flex items-center text-green-200/70">
-                        <Mail className="h-3 w-3 mr-2 text-green-400" />
+                      <div className="flex items-center text-muted-foreground">
+                        <Mail className="h-3 w-3 mr-2 text-primary" />
                         <span className="truncate">{contact.email}</span>
                       </div>
                     )}
                     {contact.phone_number && (
-                      <div className="flex items-center text-green-200/70">
-                        <Phone className="h-3 w-3 mr-2 text-green-400" />
+                      <div className="flex items-center text-muted-foreground">
+                        <Phone className="h-3 w-3 mr-2 text-primary" />
                         {contact.phone_number}
                       </div>
                     )}
                   </div>
-                  <div className="mt-3 pt-3 border-t border-slate-800">
-                    <p className="text-xs text-green-200/50">
+                  <div className="mt-3 pt-3 border-t border-border">
+                    <p className="text-xs text-muted-foreground">
                       Criado em {new Date(contact.created_at).toLocaleDateString('pt-BR')}
                     </p>
                   </div>
@@ -533,18 +529,18 @@ export default function ContactsPage() {
                 variant="outline"
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="border-slate-700 text-green-50"
+                className="border-border text-foreground"
               >
                 Anterior
               </Button>
-              <span className="text-green-200/70 text-sm">
+              <span className="text-muted-foreground text-sm">
                 Página {currentPage} - {contacts.length} de {totalCount} contatos
               </span>
               <Button
                 variant="outline"
                 onClick={() => setCurrentPage(p => p + 1)}
                 disabled={contacts.length < 15}
-                className="border-slate-700 text-green-50"
+                className="border-border text-foreground"
               >
                 Próxima
               </Button>
@@ -555,10 +551,10 @@ export default function ContactsPage() {
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="bg-slate-900 border-slate-800 text-green-50">
+        <DialogContent className="bg-card border-border text-foreground">
           <DialogHeader>
             <DialogTitle>Editar Contato</DialogTitle>
-            <DialogDescription className="text-green-200/60">
+            <DialogDescription className="text-muted-foreground">
               Atualize as informações do contato
             </DialogDescription>
           </DialogHeader>
@@ -569,7 +565,7 @@ export default function ContactsPage() {
                 id="edit-name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="bg-slate-800 border-slate-700 text-green-50"
+                className="bg-secondary border-border text-foreground"
               />
             </div>
             <div className="space-y-2">
@@ -579,7 +575,7 @@ export default function ContactsPage() {
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="bg-slate-800 border-slate-700 text-green-50"
+                className="bg-secondary border-border text-foreground"
               />
             </div>
             <div className="space-y-2">
@@ -588,7 +584,7 @@ export default function ContactsPage() {
                 id="edit-phone"
                 value={formData.phone_number}
                 onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
-                className="bg-slate-800 border-slate-700 text-green-50"
+                className="bg-secondary border-border text-foreground"
               />
             </div>
             <div className="space-y-2">
@@ -597,7 +593,7 @@ export default function ContactsPage() {
                 id="edit-avatar"
                 value={formData.avatar_url}
                 onChange={(e) => setFormData({ ...formData, avatar_url: e.target.value })}
-                className="bg-slate-800 border-slate-700 text-green-50"
+                className="bg-secondary border-border text-foreground"
               />
             </div>
           </div>
@@ -608,14 +604,14 @@ export default function ContactsPage() {
                 setIsEditDialogOpen(false)
                 resetForm()
               }}
-              className="border-slate-700 text-green-50"
+              className="border-border text-foreground"
             >
               Cancelar
             </Button>
             <Button
               onClick={handleUpdateContact}
               disabled={isSubmitting}
-              className="bg-green-600 hover:bg-green-500 text-white"
+              className="bg-primary hover:bg-primary text-foreground"
             >
               {isSubmitting ? 'Salvando...' : 'Salvar Alterações'}
             </Button>
@@ -625,22 +621,22 @@ export default function ContactsPage() {
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent className="bg-slate-900 border-slate-800">
+        <AlertDialogContent className="bg-card border-border">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-green-50">Confirmar Exclusão</AlertDialogTitle>
-            <AlertDialogDescription className="text-green-200/60">
-              Tem certeza que deseja excluir o contato <strong className="text-green-50">{selectedContact?.name}</strong>?
+            <AlertDialogTitle className="text-foreground">Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              Tem certeza que deseja excluir o contato <strong className="text-foreground">{selectedContact?.name}</strong>?
               Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-slate-700 text-green-50">
+            <AlertDialogCancel className="border-border text-foreground">
               Cancelar
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteContact}
               disabled={isSubmitting}
-              className="bg-red-600 hover:bg-red-500 text-white"
+              className="bg-destructive hover:bg-destructive text-foreground"
             >
               {isSubmitting ? 'Excluindo...' : 'Excluir'}
             </AlertDialogAction>
@@ -650,17 +646,17 @@ export default function ContactsPage() {
 
       {/* Delete Selected Dialog */}
       <AlertDialog open={isDeleteSelectedOpen} onOpenChange={setIsDeleteSelectedOpen}>
-        <AlertDialogContent className="bg-slate-900 border-slate-800">
+        <AlertDialogContent className="bg-card border-border">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-green-50">Excluir Selecionados</AlertDialogTitle>
-            <AlertDialogDescription className="text-green-200/60">
+            <AlertDialogTitle className="text-foreground">Excluir Selecionados</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
               Tem certeza que deseja excluir <strong>{selectedContacts.length}</strong> contatos selecionados?
               Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-slate-700 text-green-50">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteSelected} className="bg-red-600 hover:bg-red-500 text-white">
+            <AlertDialogCancel className="border-border text-foreground">Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteSelected} className="bg-destructive hover:bg-destructive text-foreground">
               {isSubmitting ? 'Excluindo...' : 'Excluir Selecionados'}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -669,17 +665,17 @@ export default function ContactsPage() {
 
       {/* Delete All Dialog */}
       <AlertDialog open={isDeleteAllOpen} onOpenChange={setIsDeleteAllOpen}>
-        <AlertDialogContent className="bg-slate-900 border-slate-800">
+        <AlertDialogContent className="bg-card border-border">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-green-50">Excluir TODOS os Contatos</AlertDialogTitle>
-            <AlertDialogDescription className="text-green-200/60">
+            <AlertDialogTitle className="text-foreground">Excluir TODOS os Contatos</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
               Tem certeza que deseja excluir <strong>TODOS</strong> os contatos?
               Isso apagará permanentemente todos os registros.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-slate-700 text-green-50">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteAll} className="bg-red-600 hover:bg-red-500 text-white">
+            <AlertDialogCancel className="border-border text-foreground">Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteAll} className="bg-destructive hover:bg-destructive text-foreground">
               {isSubmitting ? 'Excluindo...' : 'EXCLUIR TUDO'}
             </AlertDialogAction>
           </AlertDialogFooter>

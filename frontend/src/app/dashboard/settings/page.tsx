@@ -30,6 +30,18 @@ interface APIToken {
   created_at: string
 }
 
+interface ServerInfo {
+  server_url: string
+  webhook_url: string
+  api_url: string
+  version: string
+  name: string
+  integration_guide: {
+    evolution_webhook: string
+    docs: string
+  }
+}
+
 export default function SettingsPage() {
   const [apiKeyInfo, setApiKeyInfo] = useState<APIKeyInfo | null>(null)
   const [tokens, setTokens] = useState<APIToken[]>([])
@@ -37,6 +49,7 @@ export default function SettingsPage() {
   const [copiedField, setCopiedField] = useState<string>('')
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [newTokenData, setNewTokenData] = useState<{ token: string; name: string } | null>(null)
+  const [serverInfo, setServerInfo] = useState<ServerInfo | null>(null)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -46,7 +59,17 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchAPIKeys()
     fetchTokens()
+    fetchServerInfo()
   }, [])
+
+  const fetchServerInfo = async () => {
+    try {
+      const response = await api.get('/server/info')
+      setServerInfo(response.data)
+    } catch (error) {
+      console.error('Error fetching server info:', error)
+    }
+  }
 
   const fetchAPIKeys = async () => {
     try {
@@ -129,108 +152,108 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="flex-1 space-y-8 p-8 bg-slate-950 min-h-screen">
+    <div className="flex-1 space-y-8 p-8 bg-background min-h-screen">
       <div>
-        <h1 className="text-4xl font-bold tracking-tight text-white mb-2">Configurações</h1>
-        <p className="text-slate-400 text-lg">Gerencie suas preferências e integrações.</p>
+        <h1 className="text-4xl font-bold tracking-tight text-foreground mb-2">Configurações</h1>
+        <p className="text-muted-foreground text-lg">Gerencie suas preferências e integrações.</p>
       </div>
 
       <Tabs defaultValue="api" className="space-y-6">
-        <TabsList className="bg-slate-900/50 p-1 border border-slate-800">
-          <TabsTrigger value="profile" className="data-[state=active]:bg-slate-800">
+        <TabsList className="bg-muted p-1 border border-border">
+          <TabsTrigger value="profile" className="data-[state=active]:bg-secondary">
             <User className="h-4 w-4 mr-2" />
             Perfil
           </TabsTrigger>
-          <TabsTrigger value="account" className="data-[state=active]:bg-slate-800">
+          <TabsTrigger value="account" className="data-[state=active]:bg-secondary">
             <Building className="h-4 w-4 mr-2" />
             Conta
           </TabsTrigger>
-          <TabsTrigger value="api" className="data-[state=active]:bg-slate-800">
+          <TabsTrigger value="api" className="data-[state=active]:bg-secondary">
             <Key className="h-4 w-4 mr-2" />
             API Keys
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile" className="space-y-4">
-          <Card className="bg-slate-900/40 border-slate-800">
+          <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-white">Perfil do Usuário</CardTitle>
-              <CardDescription className="text-slate-400">
+              <CardTitle className="text-foreground">Perfil do Usuário</CardTitle>
+              <CardDescription className="text-muted-foreground">
                 Atualize suas informações pessoais
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-2">
-                <Label htmlFor="name" className="text-slate-300">Nome</Label>
+                <Label htmlFor="name" className="text-muted-foreground">Nome</Label>
                 <Input
                   id="name"
                   placeholder="Seu nome"
                   defaultValue={apiKeyInfo?.user.name}
-                  className="bg-slate-900/50 border-slate-800 text-white"
+                  className="bg-secondary border-border text-foreground"
                   autoComplete="name"
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="email" className="text-slate-300">Email</Label>
+                <Label htmlFor="email" className="text-muted-foreground">Email</Label>
                 <Input
                   id="email"
                   type="email"
                   disabled
                   defaultValue={apiKeyInfo?.user.email}
-                  className="bg-slate-900/50 border-slate-800 text-slate-500"
+                  className="bg-secondary border-border text-muted-foreground"
                   autoComplete="email"
                 />
               </div>
-              <Button className="bg-green-600 hover:bg-green-700 text-white">Salvar Alterações</Button>
+              <Button className="bg-primary hover:bg-primary/90 text-foreground">Salvar Alterações</Button>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="account" className="space-y-4">
-          <Card className="bg-slate-900/40 border-slate-800">
+          <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-white">Informações da Conta</CardTitle>
-              <CardDescription className="text-slate-400">
+              <CardTitle className="text-foreground">Informações da Conta</CardTitle>
+              <CardDescription className="text-muted-foreground">
                 Detalhes da sua conta no sistema
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-2">
-                <Label className="text-slate-300">Account ID</Label>
+                <Label className="text-muted-foreground">Account ID</Label>
                 <div className="flex items-center space-x-2">
                   <Input
                     readOnly
                     value={apiKeyInfo?.account_id || ''}
-                    className="bg-slate-900/50 border-slate-800 text-white font-mono"
+                    className="bg-secondary border-border text-foreground font-mono"
                   />
                   <Button
                     variant="outline"
                     size="icon"
                     onClick={() => handleCopy(String(apiKeyInfo?.account_id), 'account_id')}
-                    className="bg-slate-800 border-slate-700 hover:bg-slate-700"
+                    className="bg-secondary border-border hover:bg-muted"
                   >
                     {copiedField === 'account_id' ? (
-                      <Check className="h-4 w-4 text-green-500" />
+                      <Check className="h-4 w-4 text-foreground0" />
                     ) : (
-                      <Copy className="h-4 w-4 text-slate-400" />
+                      <Copy className="h-4 w-4 text-muted-foreground" />
                     )}
                   </Button>
                 </div>
               </div>
               <div className="grid gap-2">
-                <Label className="text-slate-300">Email</Label>
+                <Label className="text-muted-foreground">Email</Label>
                 <Input
                   readOnly
                   value={apiKeyInfo?.user.email || ''}
-                  className="bg-slate-900/50 border-slate-800 text-slate-300"
+                  className="bg-secondary border-border text-foreground"
                 />
               </div>
               <div className="grid gap-2">
-                <Label className="text-slate-300">Nome</Label>
+                <Label className="text-muted-foreground">Nome</Label>
                 <Input
                   readOnly
                   value={apiKeyInfo?.user.name || ''}
-                  className="bg-slate-900/50 border-slate-800 text-slate-300"
+                  className="bg-secondary border-border text-foreground"
                 />
               </div>
             </CardContent>
@@ -238,94 +261,94 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="api" className="space-y-6">
-          <Card className="bg-slate-900/40 border-slate-800">
+          <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-white">Credenciais da API</CardTitle>
-              <CardDescription className="text-slate-400">
+              <CardTitle className="text-foreground">Credenciais da API</CardTitle>
+              <CardDescription className="text-muted-foreground">
                 Use estas credenciais para integrar com a API do Mensager
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-2">
-                <Label className="text-slate-300">Account ID</Label>
+                <Label className="text-muted-foreground">Account ID</Label>
                 <div className="flex items-center space-x-2">
                   <Input
                     readOnly
                     value={apiKeyInfo?.account_id || ''}
-                    className="bg-slate-900/50 border-slate-800 text-white font-mono"
+                    className="bg-secondary border-border text-foreground font-mono"
                   />
                   <Button
                     variant="outline"
                     size="icon"
                     onClick={() => handleCopy(String(apiKeyInfo?.account_id), 'api_account_id')}
-                    className="bg-slate-800 border-slate-700 hover:bg-slate-700"
+                    className="bg-secondary border-border hover:bg-muted"
                   >
                     {copiedField === 'api_account_id' ? (
-                      <Check className="h-4 w-4 text-green-500" />
+                      <Check className="h-4 w-4 text-foreground0" />
                     ) : (
-                      <Copy className="h-4 w-4 text-slate-400" />
+                      <Copy className="h-4 w-4 text-muted-foreground" />
                     )}
                   </Button>
                 </div>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-muted-foreground">
                   Use este ID para fazer chamadas à API em /api/v1/accounts/:account_id
                 </p>
               </div>
 
-              <div className="pt-4 border-t border-slate-800">
+              <div className="pt-4 border-t border-border">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-lg font-semibold text-white">Tokens de Acesso</h3>
-                    <p className="text-sm text-slate-400">Gere tokens para autenticar suas integrações</p>
+                    <h3 className="text-lg font-semibold text-foreground">Tokens de Acesso</h3>
+                    <p className="text-sm text-muted-foreground">Gere tokens para autenticar suas integrações</p>
                   </div>
                   <div className="flex space-x-2">
                     <Button
                       onClick={generateLongLivedToken}
                       variant="outline"
-                      className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700"
+                      className="bg-secondary border-border text-foreground hover:bg-muted"
                     >
                       <RefreshCw className="h-4 w-4 mr-2" />
                       Token JWT
                     </Button>
                     <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                       <DialogTrigger asChild>
-                        <Button className="bg-green-600 hover:bg-green-700 text-white">
+                        <Button className="bg-primary hover:bg-primary/90 text-foreground">
                           <Plus className="h-4 w-4 mr-2" />
                           Novo Token
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="bg-slate-950 border-slate-800">
+                      <DialogContent className="bg-card border-border text-foreground">
                         <DialogHeader>
-                          <DialogTitle className="text-white">Criar Novo Token de API</DialogTitle>
-                          <DialogDescription className="text-slate-400">
+                          <DialogTitle className="text-foreground">Criar Novo Token de API</DialogTitle>
+                          <DialogDescription className="text-muted-foreground">
                             Tokens personalizados para diferentes integrações
                           </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4 mt-4">
                           <div className="grid gap-2">
-                            <Label htmlFor="token_name" className="text-slate-300">Nome do Token</Label>
+                            <Label htmlFor="token_name" className="text-muted-foreground">Nome do Token</Label>
                             <Input
                               id="token_name"
                               value={formData.name}
                               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                               placeholder="Ex: Evolution Integration"
-                              className="bg-slate-900/50 border-slate-800 text-white"
+                              className="bg-secondary border-border text-foreground"
                               autoComplete="off"
                             />
                           </div>
                           <div className="grid gap-2">
-                            <Label htmlFor="expires_in" className="text-slate-300">Validade (dias)</Label>
+                            <Label htmlFor="expires_in" className="text-muted-foreground">Validade (dias)</Label>
                             <Input
                               id="expires_in"
                               type="number"
                               value={formData.expires_in}
                               onChange={(e) => setFormData({ ...formData, expires_in: parseInt(e.target.value) })}
-                              className="bg-slate-900/50 border-slate-800 text-white"
+                              className="bg-secondary border-border text-foreground"
                               autoComplete="off"
                             />
-                            <p className="text-xs text-slate-500">0 = nunca expira</p>
+                            <p className="text-xs text-muted-foreground">0 = nunca expira</p>
                           </div>
-                          <Button onClick={generateToken} className="w-full bg-green-600 hover:bg-green-700">
+                          <Button onClick={generateToken} className="w-full bg-primary hover:bg-primary/90">
                             Gerar Token
                           </Button>
                         </div>
@@ -337,7 +360,7 @@ export default function SettingsPage() {
                 {newTokenData && (
                   <Card className="mb-4 bg-green-950/20 border-green-500/30">
                     <CardHeader>
-                      <CardTitle className="text-green-400 text-base flex items-center">
+                      <CardTitle className="text-primary text-base flex items-center">
                         <Check className="h-5 w-5 mr-2" />
                         Token Criado com Sucesso!
                       </CardTitle>
@@ -352,7 +375,7 @@ export default function SettingsPage() {
                           <Input
                             readOnly
                             value={newTokenData.token}
-                            className="bg-slate-900 border-green-500/30 text-white font-mono text-sm"
+                            className="bg-card border-green-500/30 text-foreground font-mono text-sm"
                           />
                           <Button
                             variant="outline"
@@ -360,7 +383,7 @@ export default function SettingsPage() {
                               handleCopy(newTokenData.token, 'new_token')
                               setTimeout(() => setNewTokenData(null), 3000)
                             }}
-                            className="bg-green-600 border-green-500 hover:bg-green-700 text-white"
+                            className="bg-primary border-green-500 hover:bg-primary/90 text-foreground"
                           >
                             <Copy className="h-4 w-4 mr-2" />
                             Copiar
@@ -373,17 +396,17 @@ export default function SettingsPage() {
 
                 <div className="space-y-3">
                   {tokens.length === 0 ? (
-                    <div className="text-center py-8 text-slate-500">
+                    <div className="text-center py-8 text-muted-foreground">
                       Nenhum token criado ainda. Crie seu primeiro token para começar.
                     </div>
                   ) : (
                     tokens.map((token) => (
-                      <Card key={token.id} className="bg-slate-900/30 border-slate-800">
+                      <Card key={token.id} className="bg-secondary border-border">
                         <CardContent className="pt-6">
                           <div className="flex items-center justify-between">
                             <div className="flex-1 space-y-1">
                               <div className="flex items-center space-x-3">
-                                <h4 className="font-medium text-white">{token.name}</h4>
+                                <h4 className="font-medium text-foreground">{token.name}</h4>
                                 {token.expires_at && (
                                   <Badge variant="outline" className="border-yellow-500/30 text-yellow-400 text-xs">
                                     Expira em {new Date(token.expires_at).toLocaleDateString()}
@@ -391,9 +414,9 @@ export default function SettingsPage() {
                                 )}
                               </div>
                               <div className="flex items-center space-x-2">
-                                <code className="text-sm font-mono text-slate-400">{token.token}</code>
+                                <code className="text-sm font-mono text-muted-foreground">{token.token}</code>
                               </div>
-                              <p className="text-xs text-slate-500">
+                              <p className="text-xs text-muted-foreground">
                                 Criado em {new Date(token.created_at).toLocaleString()}
                                 {token.last_used_at && ` • Último uso: ${new Date(token.last_used_at).toLocaleString()}`}
                               </p>
@@ -402,7 +425,7 @@ export default function SettingsPage() {
                               variant="ghost"
                               size="icon"
                               onClick={() => deleteToken(token.id)}
-                              className="text-red-400 hover:text-red-300 hover:bg-red-950/20"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -416,18 +439,110 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-slate-900/40 border-slate-800">
+          {serverInfo && (
+            <Card className="bg-gradient-to-br from-green-950/20 to-emerald-950/20 border-green-500/30">
+              <CardHeader>
+                <CardTitle className="text-primary-foreground flex items-center gap-2">
+                  <Key className="w-5 h-5 text-foreground0" />
+                  Informações do Servidor
+                </CardTitle>
+                <CardDescription className="text-green-300/70">
+                  URLs e endpoints para configurar suas integrações externas
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs text-green-200/70 uppercase tracking-wider">URL Base do Servidor</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <code className="flex-1 px-3 py-2 bg-background border border-green-500/20 rounded text-sm font-mono text-green-300">
+                        {serverInfo.server_url}
+                      </code>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="bg-primary hover:bg-primary/90 border-green-500 text-foreground"
+                        onClick={() => handleCopy(serverInfo.server_url, 'server_url')}
+                      >
+                        {copiedField === 'server_url' ? (
+                          <Check className="h-4 w-4" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs text-green-200/70 uppercase tracking-wider">API Endpoint</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <code className="flex-1 px-3 py-2 bg-background border border-green-500/20 rounded text-sm font-mono text-green-300">
+                        {serverInfo.api_url}
+                      </code>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="bg-primary hover:bg-primary/90 border-green-500 text-foreground"
+                        onClick={() => handleCopy(serverInfo.api_url, 'api_url')}
+                      >
+                        {copiedField === 'api_url' ? (
+                          <Check className="h-4 w-4" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs text-green-200/70 uppercase tracking-wider">Webhook Evolution API</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <code className="flex-1 px-3 py-2 bg-background border border-green-500/20 rounded text-sm font-mono text-green-300 break-all">
+                        {serverInfo.integration_guide?.evolution_webhook}
+                      </code>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="bg-primary hover:bg-primary/90 border-green-500 text-foreground"
+                        onClick={() => handleCopy(serverInfo.integration_guide?.evolution_webhook, 'evolution_webhook')}
+                      >
+                        {copiedField === 'evolution_webhook' ? (
+                          <Check className="h-4 w-4" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-green-200/50 italic mt-2">
+                      Substitua <code className="bg-secondary px-1 rounded">{'{INBOX_ID}'}</code> pelo ID da inbox que você criar.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-green-500/20">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-green-200/60">Versão: {serverInfo.version}</span>
+                    <Badge variant="outline" className="border-green-500/30 text-primary">
+                      {serverInfo.name}
+                    </Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-white">Como usar a API</CardTitle>
-              <CardDescription className="text-slate-400">
+              <CardTitle className="text-foreground">Como usar a API</CardTitle>
+              <CardDescription className="text-muted-foreground">
                 Exemplos de integração
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-slate-300">Criar Inbox via API</Label>
-                <pre className="bg-slate-950 border border-slate-800 rounded-lg p-4 overflow-x-auto">
-                  <code className="text-sm text-green-400">{`curl -X POST http://localhost:8080/api/v1/inboxes \\
+                <Label className="text-muted-foreground">Criar Inbox via API</Label>
+                <pre className="bg-background border border-border rounded-lg p-4 overflow-x-auto">
+                  <code className="text-sm text-primary">{`curl -X POST ${serverInfo?.api_url || (typeof window !== 'undefined' ? window.location.origin + '/api/v1' : 'http://localhost:4120/api/v1')}/inboxes \\
   -H "Authorization: Bearer SEU_TOKEN" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -438,9 +553,9 @@ export default function SettingsPage() {
                 </pre>
               </div>
               <div className="space-y-2">
-                <Label className="text-slate-300">Webhook do Evolution</Label>
-                <pre className="bg-slate-950 border border-slate-800 rounded-lg p-4 overflow-x-auto">
-                  <code className="text-sm text-blue-400">{`http://mensager-go-api-1:8080/api/v1/webhooks/evolution?inbox_id=INBOX_ID`}</code>
+                <Label className="text-muted-foreground">Webhook do Evolution</Label>
+                <pre className="bg-background border border-border rounded-lg p-4 overflow-x-auto">
+                  <code className="text-sm text-primary">{serverInfo?.integration_guide?.evolution_webhook || (typeof window !== 'undefined' ? window.location.origin + '/api/v1/webhooks/evolution?inbox_id={INBOX_ID}' : 'http://localhost:4120/api/v1/webhooks/evolution?inbox_id={INBOX_ID}')}</code>
                 </pre>
               </div>
             </CardContent>

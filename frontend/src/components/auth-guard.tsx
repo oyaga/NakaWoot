@@ -24,9 +24,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // Exception: If we already have a session from hydration, we can render immediately
   if (!session && (!hasHydrated || !isAuthCheckComplete)) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-slate-950 text-slate-200">
+      <div className="flex h-screen w-screen items-center justify-center bg-background text-foreground">
         <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-600 border-t-blue-500" />
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-border border-t-blue-500" />
           <p className="text-sm font-medium">Verificando autenticação...</p>
         </div>
       </div>

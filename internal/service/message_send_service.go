@@ -225,8 +225,9 @@ func SendMessage(conversationID uint, content string, contentType string, mediaU
 	err = db.Instance.Where("id = ?", inbox.ChannelID).First(&integration).Error
 	if err != nil {
 		// Se não encontrou por channel_id, buscar integration Evolution do account
+		// Evolution API sends channel.type = "api", so we check both
 		log.Printf("[SendMessage] Integration not found by channel_id=%d, searching by provider", inbox.ChannelID)
-		err = db.Instance.Where("account_id = ? AND provider = ?", inbox.AccountID, "evolution").First(&integration).Error
+		err = db.Instance.Where("account_id = ? AND (provider = ? OR provider = ?)", inbox.AccountID, "evolution", "api").First(&integration).Error
 		if err != nil {
 			return nil, fmt.Errorf("integration not found for account: %w", err)
 		}
@@ -249,19 +250,26 @@ func SendMessage(conversationID uint, content string, contentType string, mediaU
 	if err := json.Unmarshal(integration.Config, &configMap); err != nil {
 		return nil, fmt.Errorf("failed to parse integration config: %w", err)
 	}
+	log.Printf("[SendMessage] Integration Config (Raw): %s", string(integration.Config))
+	log.Printf("[SendMessage] Integration Config (Map): %+v", configMap)
 
-	baseURL := ""
-	apiKey := ""
-	instanceName := ""
-	if url, ok := configMap["base_url"].(string); ok {
-		baseURL = url
+	// Helper para buscar string de múltiplas chaves
+	getString := func(m map[string]interface{}, keys ...string) string {
+		for _, k := range keys {
+			if v, ok := m[k].(string); ok && v != "" {
+				return v
+			}
+		}
+		return ""
 	}
-	if key, ok := configMap["api_key"].(string); ok {
-		apiKey = key
-	}
-	if instance, ok := configMap["instance_name"].(string); ok {
-		instanceName = instance
-	}
+
+	baseURL := getString(configMap, "base_url", "baseUrl", "url", "apiUrl", "EvolutionAPIUrl")
+	apiKey := getString(configMap, "api_key", "apiKey", "token", "EvolutionAPIToken")
+	instanceName := getString(configMap, "instance_name", "instanceName", "instance", "EvolutionInstanceName")
+
+	// Limpar baseURL se tiver sufixo (ex: /message/send)
+	// Mas a Evolution Service espera a Base URL limpa
+	baseURL = strings.TrimSuffix(baseURL, "/")
 
 	evolutionService := NewEvolutionSendService(baseURL, apiKey)
 
@@ -280,8 +288,8 @@ func SendMessage(conversationID uint, content string, contentType string, mediaU
 	} else {
 		// Converter URL de localhost para URL interna do Docker para Evolution API acessar
 		internalMediaURL := mediaURL
-		if strings.Contains(mediaURL, "localhost:8080") {
-			internalMediaURL = strings.Replace(mediaURL, "localhost:8080", "mensager-go-api-1:8080", 1)
+		if strings.Contains(mediaURL, "localhost:4120") {
+			internalMediaURL = strings.Replace(mediaURL, "localhost:4120", "mensager-go-api-1:4120", 1)
 			log.Printf("[SendMessage] Converted media URL for Evolution: %s -> %s", mediaURL, internalMediaURL)
 		}
 

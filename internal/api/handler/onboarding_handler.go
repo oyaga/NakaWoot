@@ -29,11 +29,12 @@ type OnboardingRequest struct {
 
 // OnboardingResponse resposta do cadastro inicial
 type OnboardingResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-	Token   string `json:"token,omitempty"`
-	User    *User  `json:"user,omitempty"`
-	Account *struct {
+	Success   bool   `json:"success"`
+	Message   string `json:"message"`
+	Token     string `json:"token,omitempty"`
+	ServerURL string `json:"server_url,omitempty"`
+	User      *User  `json:"user,omitempty"`
+	Account   *struct {
 		ID   uint   `json:"id"`
 		Name string `json:"name"`
 	} `json:"account,omitempty"`
@@ -190,11 +191,18 @@ func CreateInitialAccount(c *gin.Context) {
 		log.Printf("[Onboarding] Warning: Failed to generate JWT: %v", err)
 	}
 
+	// Obter SERVER_URL do ambiente
+	serverURL := os.Getenv("SERVER_URL")
+	if serverURL == "" {
+		serverURL = "http://localhost:4120" // Fallback para desenvolvimento
+	}
+
 	// Resposta de sucesso
 	response := OnboardingResponse{
-		Success: true,
-		Message: "Conta criada com sucesso! Bem-vindo ao Nakawoot.",
-		Token:   token,
+		Success:   true,
+		Message:   "Conta criada com sucesso! Bem-vindo ao Nakawoot.",
+		Token:     token,
+		ServerURL: serverURL,
 		User: &User{
 			ID:          user.ID,
 			UUID:        user.UUID,
@@ -372,5 +380,25 @@ func Logout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Logout realizado com sucesso",
+	})
+}
+
+// GetServerInfo retorna informações do servidor para integração
+func GetServerInfo(c *gin.Context) {
+	serverURL := os.Getenv("SERVER_URL")
+	if serverURL == "" {
+		serverURL = "http://localhost:4120"
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"server_url":     serverURL,
+		"webhook_url":    serverURL + "/api/v1/webhooks/evolution",
+		"api_url":        serverURL + "/api/v1",
+		"version":        "1.0.0",
+		"name":           "Nakawoot",
+		"integration_guide": map[string]string{
+			"evolution_webhook": serverURL + "/api/v1/webhooks/evolution?inbox_id={INBOX_ID}",
+			"docs":              serverURL + "/docs",
+		},
 	})
 }

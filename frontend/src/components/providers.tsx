@@ -22,22 +22,18 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     if (initialCheckDone.current) return;
     initialCheckDone.current = true;
 
-    console.log('[AuthProvider] Starting session restoration...');
-    
     // Restaurar sessão do Supabase ao carregar
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (error) {
         console.error('[AuthProvider] Error getting session:', error);
       } else if (session) {
-        console.log('[AuthProvider] Restored session from Supabase storage:', session.user?.email);
-        console.log('[AuthProvider] Token expires at:', new Date(session.expires_at! * 1000).toISOString());
         setSession(session);
         setUser(session.user as ExtendedUser);
       } else {
-        console.log('[AuthProvider] No session found in Supabase storage');
+        setSession(null);
+        setUser(null);
       }
     }).finally(() => {
-      console.log('[AuthProvider] Initial auth check complete');
       setAuthCheckComplete(true);
     });
 
@@ -45,7 +41,6 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[AuthProvider] Auth state changed:', event, session?.user?.email);
       
       // Ignorar INITIAL_SESSION já que já tratamos acima
       if (event === 'INITIAL_SESSION') {
@@ -75,7 +70,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ThemeProvider
         attribute="class"
         defaultTheme="dark"
-        enableSystem={false}
+        enableSystem
+        themes={['light', 'dark', 'midnight', 'forest', 'system']}
         disableTransitionOnChange
       >
         <AuthProvider>

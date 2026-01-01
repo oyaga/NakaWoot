@@ -5,19 +5,20 @@ import (
 	"mensager-go/internal/db"
 	"mensager-go/internal/models"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 type DashboardStats struct {
-	TotalInboxes         int64                `json:"total_inboxes"`
-	TotalConversations   int64                `json:"total_conversations"`
-	AverageResponseTime  string               `json:"average_response_time"`
-	ConversationTrend    string               `json:"conversation_trend"`
-	InboxTrend           string               `json:"inbox_trend"`
-	ResponseTimeTrend    string               `json:"response_time_trend"`
-	RecentActivity       []RecentActivityItem `json:"recent_activity"`
+	TotalInboxes        int64                `json:"total_inboxes"`
+	TotalConversations  int64                `json:"total_conversations"`
+	AverageResponseTime string               `json:"average_response_time"`
+	ConversationTrend   string               `json:"conversation_trend"`
+	InboxTrend          string               `json:"inbox_trend"`
+	ResponseTimeTrend   string               `json:"response_time_trend"`
+	RecentActivity      []RecentActivityItem `json:"recent_activity"`
 }
 
 type RecentActivityItem struct {
@@ -27,6 +28,7 @@ type RecentActivityItem struct {
 	Status    string    `json:"status"`
 	Type      string    `json:"type"`
 	Time      string    `json:"time"`
+	AvatarURL string    `json:"avatar_url"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -76,12 +78,31 @@ func GetDashboardStats(c *gin.Context) {
 	if prevMonthConv > 0 {
 		change := float64(lastMonthConv-prevMonthConv) / float64(prevMonthConv) * 100
 		stats.ConversationTrend = fmt.Sprintf("%+.0f%%", change)
+	} else if lastMonthConv > 0 {
+		stats.ConversationTrend = "+100%"
 	} else {
-		stats.ConversationTrend = "+15%"
+		stats.ConversationTrend = "0%"
 	}
 
-	// Trend de inboxes (simplificado)
-	stats.InboxTrend = "+2"
+	// Trend de inboxes (real)
+	var lastMonthInboxes, prevMonthInboxes int64
+	db.Instance.Model(&models.Inbox{}).
+		Where("account_id = ? AND created_at >= ?", accountID.(uint), lastMonth).
+		Count(&lastMonthInboxes)
+
+	db.Instance.Model(&models.Inbox{}).
+		Where("account_id = ? AND created_at >= ? AND created_at < ?",
+			accountID.(uint), twoMonthsAgo, lastMonth).
+		Count(&prevMonthInboxes)
+
+	if prevMonthInboxes > 0 {
+		change := float64(lastMonthInboxes-prevMonthInboxes) / float64(prevMonthInboxes) * 100
+		stats.InboxTrend = fmt.Sprintf("%+.0f%%", change)
+	} else if lastMonthInboxes > 0 {
+		stats.InboxTrend = "+100%"
+	} else {
+		stats.InboxTrend = "0%"
+	}
 
 	// Calcular tempo médio de resposta real
 	stats.AverageResponseTime, stats.ResponseTimeTrend = calculateAverageResponseTime(accountID.(uint))
@@ -89,11 +110,11 @@ func GetDashboardStats(c *gin.Context) {
 	// Atividade Recente
 	stats.RecentActivity = []RecentActivityItem{}
 
-	// Buscar últimos 3 contatos
+	// Buscar últimos 6 contatos
 	var recentContacts []models.Contact
 	db.Instance.Where("account_id = ?", accountID.(uint)).
 		Order("created_at DESC").
-		Limit(2).
+		Limit(6).
 		Find(&recentContacts)
 
 	for _, contact := range recentContacts {
@@ -104,21 +125,23 @@ func GetDashboardStats(c *gin.Context) {
 			Status:    "Novo contato",
 			Type:      "contact",
 			Time:      getTimeSince(contact.CreatedAt),
+			AvatarURL: contact.AvatarURL,
 			CreatedAt: contact.CreatedAt,
 		})
 	}
 
-	// Buscar últimas 2 conversas
+	// Buscar últimas 6 conversas
 	var recentConversations []models.Conversation
 	db.Instance.Where("account_id = ?", accountID.(uint)).
 		Order("created_at DESC").
-		Limit(2).
+		Limit(6).
 		Find(&recentConversations)
 
 	for _, conv := range recentConversations {
 		// Buscar contato da conversa se existir
 		name := fmt.Sprintf("Conversa #%d", conv.ID)
 		email := ""
+		avatarURL := ""
 
 		if conv.ContactID > 0 {
 			var contact models.Contact
@@ -126,6 +149,7 @@ func GetDashboardStats(c *gin.Context) {
 			if err == nil {
 				name = contact.Name
 				email = contact.Email
+				avatarURL = contact.AvatarURL
 			}
 		}
 
@@ -143,8 +167,19 @@ func GetDashboardStats(c *gin.Context) {
 			Status:    status,
 			Type:      "conversation",
 			Time:      getTimeSince(conv.CreatedAt),
+			AvatarURL: avatarURL,
 			CreatedAt: conv.CreatedAt,
 		})
+	}
+
+	// Ordenar toda a atividade por data (mais recente primeiro)
+	sort.Slice(stats.RecentActivity, func(i, j int) bool {
+		return stats.RecentActivity[i].CreatedAt.After(stats.RecentActivity[j].CreatedAt)
+	})
+
+	// Limitar a 6 itens no total
+	if len(stats.RecentActivity) > 6 {
+		stats.RecentActivity = stats.RecentActivity[:6]
 	}
 
 	c.JSON(http.StatusOK, stats)
@@ -327,7 +362,7 @@ func calculateAvgFromTimes(times []ResponseTime) float64 {
 
 // ConversationStatsResponse representa os dados para o gráfico de conversas
 type ConversationStatsResponse struct {
-	Period string                `json:"period"`
+	Period string                  `json:"period"`
 	Data   []ConversationDataPoint `json:"data"`
 }
 

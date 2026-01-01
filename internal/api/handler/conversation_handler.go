@@ -2,7 +2,6 @@ package handler
 
 import (
 	"log"
-	"mensager-go/internal/models"
 	"mensager-go/internal/repository"
 	"net/http"
 	"strconv"
@@ -62,7 +61,7 @@ func ListConversations(c *gin.Context) {
 		return
 	}
 
-	conversations, err := repository.ListConversationsByAccount(accountID)
+	conversations, err := repository.ListConversationsByAccount(accountID, inboxID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -94,16 +93,85 @@ func AssignHandler(c *gin.Context) {
 
 func MarkAsReadHandler(c *gin.Context) {
 	idStr := c.Param("id")
-	convID, _ := strconv.ParseUint(idStr, 10, 32)
+	convID, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid conversation id"})
+		return
+	}
+
 	accountVal, _ := c.Get("account_id")
 	accountID := accountVal.(uint)
-	_ = accountID
 
-	// TODO: Implementar lógica de marcar como lido no repository
-	// Por enquanto apenas retorna sucesso
-	_ = convID
+	userVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+	userID := userVal.(uint)
 
-	c.JSON(http.StatusOK, gin.H{"status": "marked as read"})
+	// Verificar se a conversa existe e pertence à conta
+	conversation, err := repository.GetConversationByID(uint(convID))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "conversation not found"})
+		return
+	}
+
+	if uint(conversation.AccountID) != accountID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+		return
+	}
+
+	// Marcar todas as mensagens da conversa como lidas para este usuário
+	if err := repository.MarkAllMessagesAsReadByUser(uint(convID), userID); err != nil {
+		log.Printf("Error marking messages as read for user %d in conversation %d: %v", userID, convID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to mark messages as read"})
+		return
+	}
+
+	// Também marcar no status antigo para compatibilidade
+	if err := repository.MarkMessagesAsRead(uint(convID)); err != nil {
+		log.Printf("Warning: Error updating old message status for conversation %d: %v", convID, err)
+	}
+
+	// Atualizar o contador de não lidas da conversa para 0
+	if err := repository.UpdateConversationUnreadCount(uint(convID), 0); err != nil {
+		log.Printf("Error updating unread count for conversation %d: %v", convID, err)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "marked as read", "user_id": userID})
+}
+
+// MarkAllAsRead - POST /api/v1/conversations/mark-all-read
+func MarkAllAsRead(c *gin.Context) {
+	accountVal, _ := c.Get("account_id")
+	accountID := accountVal.(uint)
+
+	userVal, _ := c.Get("user_id")
+	userID := userVal.(uint)
+
+	inboxIDStr := c.Query("inbox_id")
+	var inboxID *uint
+	if inboxIDStr != "" {
+		if id, err := strconv.ParseUint(inboxIDStr, 10, 32); err == nil {
+			idUint := uint(id)
+			inboxID = &idUint
+		}
+	}
+
+	if err := repository.MarkAllConversationsAsRead(accountID, userID, inboxID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to mark all as read"})
+		return
+	}
+
+	// Broadcast para atualizar a lista de conversas no frontend
+	// Como muitas mudaram, o ideal é enviar um evento global ou múltiplos individuais
+	// Para simplificar e evitar flood, vamos enviar um evento que force o refetch total ou apenas confirmar sucesso
+	BroadcastToAccount(accountID, RealtimeEvent{
+		Type:    "conversations.mark_all_read",
+		Payload: gin.H{"inbox_id": inboxID},
+	})
+
+	c.JSON(http.StatusOK, gin.H{"status": "all marked as read"})
 }
 
 // CreateConversation cria uma nova conversa (Chatwoot-compatible)
@@ -154,8 +222,8 @@ func DeleteConversation(c *gin.Context) {
 	}
 
 	// Verificar se a conversa pertence à conta do usuário
-	var conversation models.Conversation
-	if err := repository.GetConversationByID(uint(conversationID), &conversation); err != nil {
+	conversation, err := repository.GetConversationByID(uint(conversationID))
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Conversation not found"})
 		return
 	}
@@ -222,4 +290,23 @@ func ClearInboxConversations(c *gin.Context) {
 	})
 
 	c.JSON(http.StatusOK, gin.H{"status": "cleared", "count": count})
+}
+
+// GetUnreadCounts retorna o número de mensagens não lidas por conversa para o usuário logado
+func GetUnreadCounts(c *gin.Context) {
+	userVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+	userID := userVal.(uint)
+
+	unreadCounts, err := repository.GetUnreadCountByConversation(userID)
+	if err != nil {
+		log.Printf("Error getting unread counts for user %d: %v", userID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get unread counts"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"unread_counts": unreadCounts})
 }

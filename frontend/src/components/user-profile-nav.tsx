@@ -16,9 +16,9 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
 const statusMap = {
-  online: { label: 'Online', color: 'text-green-500' },
+  online: { label: 'Online', color: 'text-foreground0' },
   busy: { label: 'Ocupado', color: 'text-yellow-500' },
-  offline: { label: 'Offline', color: 'text-slate-400' },
+  offline: { label: 'Offline', color: 'text-muted-foreground' },
 };
 
 export function UserProfileNav() {
@@ -45,16 +45,16 @@ export function UserProfileNav() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="w-full outline-none">
-        <div className="p-4 border-t border-slate-800 flex items-center space-x-3 hover:bg-slate-800 transition-colors cursor-pointer">
+        <div className="p-4 border-t border-border flex items-center space-x-3 hover:bg-secondary transition-colors cursor-pointer">
           <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-blue-600 text-white text-xs">
+            <AvatarFallback className="bg-primary text-white text-xs">
               {userName[0].toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div className="text-sm text-left flex-1 overflow-hidden">
             <p className="text-white font-medium truncate">{userName}</p>
-            <p className="text-xs text-slate-500 flex items-center">
-              <Circle size={8} className={`mr-1 fill-current text-green-500`} />
+            <p className="text-xs text-muted-foreground flex items-center">
+              <Circle size={8} className={`mr-1 fill-current text-foreground0`} />
               Online
             </p>
           </div>
@@ -64,13 +64,13 @@ export function UserProfileNav() {
         <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => handleStatusChange('online')}>
-          <Circle size={8} className="mr-2 fill-green-500 text-green-500" /> Online
+          <Circle size={8} className="mr-2 fill-green-500 text-foreground0" /> Online
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => handleStatusChange('busy')}>
           <Circle size={8} className="mr-2 fill-yellow-500 text-yellow-500" /> Ocupado
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => handleStatusChange('offline')}>
-          <Circle size={8} className="mr-2 fill-slate-400 text-slate-400" /> Offline
+          <Circle size={8} className="mr-2 fill-slate-400 text-muted-foreground" /> Offline
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="text-red-600" onClick={handleLogout}>

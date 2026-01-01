@@ -1,95 +1,150 @@
-# 🦅 NakaWoot (Mensager-Go)
+# 🚀 NakaWoot
 
-**NakaWoot** é uma plataforma de atendimento open-source moderna, desenvolvida para unificar e gerenciar conversas de múltiplos canais como WhatsApp, Facebook e Instagram.
+<p align="center">
+  <img src="https://img.shields.io/badge/Go-1.23-00ADD8?logo=go" alt="Go">
+  <img src="https://img.shields.io/badge/Next.js-15-black?logo=next.js" alt="Next.js">
+  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker" alt="Docker">
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
+</p>
 
-É um fork otimizado e reescrito em **Go (Golang)** do backend do Chatwoot, focado em alta performance, baixo consumo de memória e fácil integração com [Evolution API](https://doc.evolution-api.com) para WhatsApp.
-
----
-
-## 🚀 Funcionalidades
-
-- **Backend em Go:** Alta performance e concorrência nativa.
-- **Frontend em Next.js:** Interface moderna, rápida e responsiva construída com React e TailwindCSS.
-- **Supabase Integrado:** Autenticação, Banco de Dados (PostgreSQL) e Realtime (WebSockets) prontos para uso.
-- **Integração Nativa com Evolution API:**
-  - Conecte instâncias de WhatsApp facilmente.
-  - Webhooks automatizados para sincronização de mensagens.
-  - Criação automática de contatos e conversas.
-- **Multi-Inbox:** Gerencie vários canais (WhatsApp, Web Widget, etc) em um único painel.
-- **Self-Hosted:** Controle total dos seus dados, rodando via Docker.
+**NakaWoot** é uma plataforma de mensagens unificada construída com Go (backend) e Next.js (frontend), projetada para integrar múltiplos canais de comunicação como WhatsApp via Evolution API.
 
 ---
 
-## 🛠️ Stack Tecnológica
+## ✨ Features
 
-### Backend
-
-- **Linguagem:** Go (Golang) 1.21+
-- **Frameworks:** Gin, GORM
-- **Banco de Dados:** PostgreSQL (via Supabase)
-
-### Frontend
-
-- **Framework:** Next.js 14 (App Router)
-- **UI:** Tailwind CSS, Shadcn/UI, Lucide Icons
-- **Estado:** Zustand
-
-### Infraestrutura
-
-- **Supabase:** Base de dados, Auth e Realtime
-- **Docker:** Containerização completa (Backend, Frontend, Banco, Evolution)
+- 📱 **Multi-Inbox**: Gerencie múltiplas caixas de entrada em uma interface
+- 💬 **Conversas em Tempo Real**: WebSocket para atualizações instantâneas
+- 🔗 **Integração Evolution API**: Conecte WhatsApp facilmente
+- 🎨 **UI Moderna**: Interface responsiva com dark/light mode
+- 🔐 **Autenticação Supabase**: Login seguro com JWT
+- 📦 **Storage Flexível**: Suporte a MinIO ou Supabase Storage
+- 🐳 **Docker Ready**: Deploy fácil via Docker Compose ou Swarm
 
 ---
 
-## 🏁 Como Rodar
+## 🐳 Quick Start com Docker
+
+```bash
+docker run -d \
+  --name nakawoot \
+  -p 4120:4120 \
+  -e DB_HOST=your-db-host \
+  -e DB_PASSWORD=your-password \
+  -e SUPABASE_URL=http://your-supabase:8000 \
+  -e SUPABASE_JWT_SECRET=your-jwt-secret \
+  oyaga/nakawoot:latest
+```
+
+Acesse: `http://localhost:4120`
+
+---
+
+## 📋 Variáveis de Ambiente
+
+| Variável                    | Descrição               | Padrão           |
+| --------------------------- | ----------------------- | ---------------- |
+| `PORT`                      | Porta do servidor       | `4120`           |
+| `DB_HOST`                   | Host do PostgreSQL      | -                |
+| `DB_PORT`                   | Porta do PostgreSQL     | `5432`           |
+| `DB_USER`                   | Usuário do banco        | `supabase_admin` |
+| `DB_PASSWORD`               | Senha do banco          | -                |
+| `DB_NAME`                   | Nome do banco           | `postgres`       |
+| `SUPABASE_URL`              | URL do Supabase Kong    | -                |
+| `SUPABASE_JWT_SECRET`       | Secret para JWT         | -                |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service Role Key        | -                |
+| `SUPABASE_ANON_KEY`         | Anon Key                | -                |
+| `USE_MINIO`                 | Usar MinIO para storage | `false`          |
+| `USE_SUPABASE_STORAGE`      | Usar Supabase Storage   | `true`           |
+
+---
+
+## 🏗️ Arquitetura
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    NakaWoot                         │
+├─────────────────────────────────────────────────────┤
+│  Frontend (Next.js 15)     │  Backend (Go 1.23)    │
+│  - React 19                │  - Chi Router         │
+│  - Tailwind CSS            │  - Supabase Auth      │
+│  - Zustand                 │  - WebSocket          │
+└─────────────────────────────────────────────────────┘
+         │                            │
+         ▼                            ▼
+┌─────────────────┐        ┌─────────────────────┐
+│   Supabase      │        │   Evolution API     │
+│   (Auth + DB)   │        │   (WhatsApp)        │
+└─────────────────┘        └─────────────────────┘
+```
+
+---
+
+## 🛠️ Desenvolvimento Local
 
 ### Pré-requisitos
 
-- Docker e Docker Compose instalados.
+- Go 1.23+
+- Node.js 20+
+- Docker & Docker Compose
+- Supabase (local ou cloud)
 
-### Passos Rápidos
+### Setup
 
-1.  **Clone o repositório:**
+```bash
+# Clone o repositório
+git clone https://github.com/oyaga/NakaWoot.git
+cd NakaWoot
 
-    ```bash
-    git clone https://github.com/oyaga/NakaWoot.git
-    cd NakaWoot
-    ```
+# Instalar dependências do frontend
+cd frontend && npm install && cd ..
 
-2.  **Configure o Ambiente:**
-    Copie o arquivo de exemplo e ajuste se necessário:
-
-    ```bash
-    cp .env.template .env
-    ```
-
-3.  **Inicie os Serviços:**
-
-    ```bash
-    docker-compose up -d --build
-    ```
-
-4.  **Acesse:**
-    - **Frontend:** [http://localhost:3003](http://localhost:3003)
-    - **API:** [http://localhost:8080](http://localhost:8080)
-    - **Evolution API:** [http://localhost:8082](http://localhost:8082)
-    - **Supabase Studio:** [http://localhost:3000](http://localhost:3000)
+# Rodar com Docker Compose
+docker-compose up -d --build
+```
 
 ---
 
-## 📖 Documentação Importante
+## 🚀 Deploy em Produção (Docker Swarm)
 
-- **Criando Inboxes:** Veja [COMO_CRIAR_INBOX.md](./COMO_CRIAR_INBOX.md) para detalhes de como configurar canais.
-- **Integração Evolution:** Veja [GUIA_INTEGRACAO_EVOLUTION.md](./GUIA_INTEGRACAO_EVOLUTION.md) para conectar seu WhatsApp.
+```bash
+# Inicializar Swarm (se necessário)
+docker swarm init
+
+# Deploy da stack
+docker stack deploy -c stack.yaml nakawoot
+
+# Verificar serviços
+docker service ls
+```
+
+---
+
+## 📦 Docker Tags
+
+| Tag                     | Descrição                  |
+| ----------------------- | -------------------------- |
+| `oyaga/nakawoot:latest` | Última versão estável      |
+| `oyaga/nakawoot:stable` | Versão de produção testada |
 
 ---
 
 ## 🤝 Contribuição
 
-Contribuições são bem-vindas! Sinta-se à vontade para abrir issues ou enviar pull requests.
+1. Fork o projeto
+2. Crie sua branch (`git checkout -b feature/AmazingFeature`)
+3. Commit suas mudanças (`git commit -m 'Add AmazingFeature'`)
+4. Push para a branch (`git push origin feature/AmazingFeature`)
+5. Abra um Pull Request
 
 ---
 
 ## 📄 Licença
 
-Este projeto é distribuído sob a licença MIT.
+Este projeto está sob a licença MIT. Veja [LICENSE](LICENSE) para mais detalhes.
+
+---
+
+<p align="center">
+  Feito com ❤️ por <a href="https://github.com/oyaga">Oyaga</a>
+</p>

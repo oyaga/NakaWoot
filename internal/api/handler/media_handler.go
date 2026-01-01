@@ -1,7 +1,10 @@
 package handler
 
 import (
+	"log"
+	"mensager-go/internal/service"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -27,8 +30,31 @@ func ServeMedia(c *gin.Context) {
 		return
 	}
 
-	// Path do arquivo
-	basePath := "./media"
+	// Se estiver usando MinIO, buscar arquivo de lá
+	if service.GlobalMediaStorage != nil {
+		// Tentar usar o método GetFromMinio se disponível (MinioMediaStorage)
+		if minioStorage, ok := service.GlobalMediaStorage.(*service.MinioMediaStorage); ok {
+			data, contentType, err := minioStorage.GetFromMinio(c.Request.Context(), fileName)
+			if err != nil {
+				log.Printf("[ServeMedia] Error getting file from MinIO: %v", err)
+				c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
+				return
+			}
+
+			// Definir headers apropriados
+			c.Header("Content-Type", contentType)
+			c.Header("Cache-Control", "public, max-age=31536000") // Cache por 1 ano
+			c.Data(http.StatusOK, contentType, data)
+			return
+		}
+	}
+
+	// Fallback para storage local
+	basePath := os.Getenv("MEDIA_STORAGE_PATH")
+	if basePath == "" {
+		basePath = "./media"
+	}
+
 	fullPath := filepath.Join(basePath, fileName)
 
 	// SEGURANÇA: Garantir que o caminho final está dentro do diretório base

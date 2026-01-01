@@ -22,8 +22,8 @@ key={tab.id}
 onClick={() => onTabChange(tab.id)}
 className={`flex-1 flex items-center justify-center space-x-2 py-3 text-xs font-medium transition-colors border-b-2 ${
 activeTab === tab.id
-? 'border-blue-600 text-blue-600 bg-blue-50/50'
-: 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+? 'border-blue-600 text-primary bg-blue-50/50'
+: 'border-transparent text-muted-foreground hover:text-foreground hover:bg-background'
 }`}
 >
 <tab.icon size={14} />

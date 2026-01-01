@@ -36,8 +36,8 @@ COPY --from=backend-build /out/api /app/api
 # Copiar frontend compilado para /app/manager/dist
 COPY --from=frontend-build /app/frontend/out /app/manager/dist
 
-EXPOSE 8080
-ENV PORT=8080
+EXPOSE 4120
+ENV PORT=4120
 ENV FRONTEND_PATH=/app/manager/dist
 
 CMD ["/app/api"]

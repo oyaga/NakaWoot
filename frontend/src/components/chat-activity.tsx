@@ -18,7 +18,7 @@ export function ChatActivity({ type, userName, createdAt, metadata }: ActivityPr
     switch (type) {
       case 'assignee_changed':
         return (
-          <div className="flex items-center gap-2 text-slate-500">
+          <div className="flex items-center gap-2 text-muted-foreground">
             <UserCheck className="h-3.5 w-3.5" />
             <span>
               <strong>{userName || 'Sistema'}</strong> assumiu o atendimento
@@ -27,7 +27,7 @@ export function ChatActivity({ type, userName, createdAt, metadata }: ActivityPr
         )
       case 'status_changed':
         return (
-          <div className="flex items-center gap-2 text-slate-500">
+          <div className="flex items-center gap-2 text-muted-foreground">
             <CheckCircle2 className="h-3.5 w-3.5" />
             <span>
               Status alterado para <strong>{metadata?.status === 1 ? 'Resolvido' : 'Aberto'}</strong>
@@ -36,7 +36,7 @@ export function ChatActivity({ type, userName, createdAt, metadata }: ActivityPr
         )
       default:
         return (
-          <div className="flex items-center gap-2 text-slate-500">
+          <div className="flex items-center gap-2 text-muted-foreground">
             <Info className="h-3.5 w-3.5" />
             <span>Evento de sistema registrado</span>
           </div>
@@ -46,9 +46,9 @@ export function ChatActivity({ type, userName, createdAt, metadata }: ActivityPr
 
   return (
     <div className="flex justify-center my-4">
-      <div className="bg-slate-100/50 px-4 py-1.5 rounded-full border border-slate-200/60 flex items-center gap-3 text-[11px]">
+      <div className="bg-accent/50 px-4 py-1.5 rounded-full border border-border/60 flex items-center gap-3 text-[11px]">
         {renderContent()}
-        <span className="text-slate-400 font-mono">{dateLabel}</span>
+        <span className="text-muted-foreground font-mono">{dateLabel}</span>
       </div>
     </div>
   )

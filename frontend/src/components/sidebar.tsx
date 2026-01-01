@@ -9,7 +9,7 @@ import {
   Inbox,
   LogOut,
   Hash,
-  Plug
+  Plug,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -19,6 +19,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useAuthStore } from "@/store/useAuthStore";
+import { ModeToggle } from "@/components/mode-toggle";
 
 const menuItems = [
   { icon: MessageSquare, label: "Dashboard", href: "/dashboard" },
@@ -42,11 +43,11 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="flex h-screen w-20 flex-col items-center border-r border-slate-800 bg-slate-950 py-6 space-y-6">
+    <aside className="flex h-screen w-20 flex-col items-center border-r border-border bg-card py-6 space-y-6">
       {/* Logo */}
       <div className="mb-2">
-        <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-green-600 to-green-500 flex items-center justify-center shadow-lg shadow-green-600/20">
-          <Hash className="h-7 w-7 text-white" />
+        <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary to-primary/90 flex items-center justify-center shadow-lg shadow-primary/20">
+          <Hash className="h-7 w-7 text-primary-foreground" />
         </div>
       </div>
 
@@ -63,8 +64,8 @@ export function Sidebar() {
                     className={cn(
                       "flex h-12 w-12 items-center justify-center rounded-xl transition-all duration-200",
                       isActive
-                        ? "bg-green-600 text-white shadow-lg shadow-green-600/30"
-                        : "text-green-200/60 hover:bg-slate-800 hover:text-green-400"
+                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30"
+                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                     )}
                   >
                     <item.icon className="h-5 w-5" />
@@ -73,7 +74,7 @@ export function Sidebar() {
                 </TooltipTrigger>
                 <TooltipContent
                   side="right"
-                  className="bg-slate-800 border-slate-700 text-green-50"
+                  className="bg-popover border-border text-popover-foreground"
                 >
                   <p>{item.label}</p>
                 </TooltipContent>
@@ -94,8 +95,8 @@ export function Sidebar() {
                     className={cn(
                       "flex h-12 w-12 items-center justify-center rounded-xl transition-all duration-200",
                       isActive
-                        ? "bg-green-600 text-white shadow-lg shadow-green-600/30"
-                        : "text-green-200/60 hover:bg-slate-800 hover:text-green-400"
+                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30"
+                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                     )}
                   >
                     <item.icon className="h-5 w-5" />
@@ -104,7 +105,7 @@ export function Sidebar() {
                 </TooltipTrigger>
                 <TooltipContent
                   side="right"
-                  className="bg-slate-800 border-slate-700 text-green-50"
+                  className="bg-popover border-border text-popover-foreground"
                 >
                   <p>{item.label}</p>
                 </TooltipContent>
@@ -112,12 +113,17 @@ export function Sidebar() {
             );
           })}
 
+          {/* Theme Toggle Button */}
+          <div className="flex items-center justify-center">
+            <ModeToggle />
+          </div>
+
           {/* Logout Button */}
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 onClick={handleLogout}
-                className="flex h-12 w-12 items-center justify-center rounded-xl text-red-400/80 hover:bg-red-950/50 hover:text-red-400 transition-all duration-200"
+                className="flex h-12 w-12 items-center justify-center rounded-xl text-red-500/80 dark:text-red-400/80 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 dark:hover:text-red-400 transition-all duration-200"
               >
                 <LogOut className="h-5 w-5" />
                 <span className="sr-only">Sair</span>
@@ -125,7 +131,7 @@ export function Sidebar() {
             </TooltipTrigger>
             <TooltipContent
               side="right"
-              className="bg-slate-800 border-slate-700 text-green-50"
+              className="bg-white border-border text-foreground"
             >
               <p>Sair</p>
             </TooltipContent>

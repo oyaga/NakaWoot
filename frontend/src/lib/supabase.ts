@@ -1,29 +1,10 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
+import { SupabaseClient } from '@supabase/supabase-js';
 
-// Verificar se estamos no browser para usar localStorage
+// Verificar se estamos no browser
 const isBrowser = typeof window !== 'undefined';
 
-// Custom storage para debug
-const customStorage = {
-  getItem: (key: string) => {
-    if (!isBrowser) return null;
-    const value = localStorage.getItem(key);
-    console.log(`[Supabase Storage] getItem(${key}):`, value ? 'found (' + value.length + ' chars)' : 'null');
-    return value;
-  },
-  setItem: (key: string, value: string) => {
-    if (!isBrowser) return;
-    console.log(`[Supabase Storage] setItem(${key}):`, value.length, 'chars');
-    localStorage.setItem(key, value);
-  },
-  removeItem: (key: string) => {
-    if (!isBrowser) return;
-    console.log(`[Supabase Storage] removeItem(${key})`)
-    localStorage.removeItem(key);
-  },
-};
-
-// Lazy initialization - client só é criado quando acessado no browser
+// Lazy initialization - client só é criado quando acessado
 let _supabase: SupabaseClient | null = null;
 
 function getSupabaseClient(): SupabaseClient {
@@ -40,47 +21,29 @@ function getSupabaseClient(): SupabaseClient {
     if (hostname.includes('aikanakamura.com')) {
       supabaseUrl = 'https://banker.aikanakamura.com';
       supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.p97SPDUBrtdz7FOYcnCWcsSp0a2ebATVgbNM9xOy4Xg';
-      console.log('[Supabase] Using runtime fallback URL for aikanakamura.com domain');
     } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
       supabaseUrl = 'http://localhost:8000';
       supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.p97SPDUBrtdz7FOYcnCWcsSp0a2ebATVgbNM9xOy4Xg';
-      console.log('[Supabase] Using localhost fallback URL for development');
     }
   }
   
-  // Se ainda não tiver URL (SSR ou hostname desconhecido), usar placeholder
+  // Se ainda não tiver URL, usar placeholder (evitar crash)
   if (!supabaseUrl) {
-    console.warn('[Supabase] URL not configured, using placeholder');
-    _supabase = createClient('https://placeholder.supabase.co', 'placeholder-key', {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      }
-    });
-    return _supabase;
+    console.warn('[Supabase] URL not configured');
+    return createBrowserClient(
+      'https://placeholder.supabase.co',
+      'placeholder-key'
+    );
   }
   
-  _supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  // Usar createBrowserClient do SSR que gerencia cookies automaticamente
+  _supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       persistSession: true,
-      autoRefreshToken: true,
+      autoRefreshToken: true, // SSR precisa de refresh token
       detectSessionInUrl: true,
-      storage: customStorage,
-      storageKey: 'sb-mensager-auth-token',
     }
   });
-  
-  // Log de debug na inicialização
-  if (isBrowser) {
-    console.log('[Supabase] Client initialized');
-    console.log('[Supabase] URL:', supabaseUrl);
-    console.log('[Supabase] Checking existing storage keys...');
-    
-    const supabaseKeys = Object.keys(localStorage).filter(k => 
-      k.includes('supabase') || k.includes('sb-') || k.includes('mensager')
-    );
-    console.log('[Supabase] Found storage keys:', supabaseKeys);
-  }
   
   return _supabase;
 }

@@ -30,6 +30,6 @@ UPDATE public.inboxes
 SET metadata = jsonb_build_object(
 'instance_name', 'MensagerNK_Primary',
 'provider', 'evolution',
-'webhook_url', 'http://localhost:8080/api/v1/webhooks/evolution'
-)
+    'webhook_url', 'http://localhost:4120/api/v1/webhooks/evolution',
+    'api_url', 'http://localhost:4120/api/v1',)
 WHERE name = 'WhatsApp Principal';

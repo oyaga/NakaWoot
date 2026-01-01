@@ -5,9 +5,9 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"
+      - "4120:4120"
     environment:
-      PORT: "8080"
+      PORT: "4120"
       DB_HOST: "supabase-db"
       DB_PORT: "5432"
       DB_USER: "supabase_admin"
@@ -23,13 +23,13 @@ services:
       # Frontend path
       FRONTEND_PATH: "/app/manager/dist"
       # Fallback para storage local
-      MEDIA_BASE_URL: "http://localhost:8080/media"
+      MEDIA_BASE_URL: "http://localhost:4120/media"
     networks:
       - default
       - supabase_network
       - vps-net
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/v1/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:4120/api/v1/health"]
       interval: 10s
       timeout: 3s
       retries: 10

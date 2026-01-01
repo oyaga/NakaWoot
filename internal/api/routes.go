@@ -29,6 +29,7 @@ func SetupRoutes(r *gin.Engine) {
 		v1.POST("/installation/onboard", handler.CreateInitialAccount)
 		v1.POST("/auth/login", handler.Login)
 		v1.POST("/auth/logout", handler.Logout)
+		v1.GET("/server/info", handler.GetServerInfo) // Informações do servidor para integração
 
 		protected := v1.Group("/")
 		protected.Use(middleware.AuthMiddleware())
@@ -43,7 +44,7 @@ func SetupRoutes(r *gin.Engine) {
 			protected.GET("/conversations", handler.ListConversations)
 			protected.POST("/conversations", handler.CreateConversation)
 			protected.GET("/conversations/:id/activities", handler.ListConversationActivities)
-			protected.POST("/conversations/:id/read", handler.MarkAsReadHandler)
+
 			protected.POST("/conversations/:id/assign", handler.AssignHandler)
 			protected.DELETE("/conversations/:id", handler.DeleteConversation)
 
@@ -79,6 +80,7 @@ func SetupRoutes(r *gin.Engine) {
 			// Integrations
 			protected.GET("/integrations", handler.ListIntegrations)
 			protected.POST("/integrations", handler.CreateIntegration)
+			protected.PUT("/integrations/:id", handler.UpdateIntegration)
 			protected.DELETE("/integrations/:id", handler.DeleteIntegration)
 
 			// API Keys / Tokens
@@ -101,8 +103,27 @@ func SetupRoutes(r *gin.Engine) {
 		{
 			convMessages.GET("/:id/messages", handler.ListMessages)
 			convMessages.POST("/:id/messages", handler.SendMessageToConversation)
-			convMessages.POST("/:id/read", handler.MarkConversationAsRead)
+			convMessages.POST("/:id/read", handler.MarkAsReadHandler)
 			convMessages.GET("/:id/stats", handler.GetConversationStats)
+		}
+
+		// Conversation Messages Routes (plural - for frontend compatibility)
+		convMessagesPlural := v1.Group("/conversations")
+		convMessagesPlural.Use(middleware.AuthMiddleware())
+		{
+			convMessagesPlural.GET("/:id/messages", handler.ListMessages)
+			convMessagesPlural.POST("/:id/messages", handler.SendMessageToConversation)
+			convMessagesPlural.POST("/:id/read", handler.MarkAsReadHandler)
+			convMessagesPlural.POST("/mark-all-read", handler.MarkAllAsRead)
+			convMessagesPlural.GET("/:id/stats", handler.GetConversationStats)
+			convMessagesPlural.GET("/unread-counts", handler.GetUnreadCounts) // Novo endpoint para contadores
+		}
+
+		// Message Routes (for batch operations)
+		messages := v1.Group("/messages")
+		messages.Use(middleware.AuthMiddleware())
+		{
+			messages.POST("/mark-as-read", handler.MarkMessagesAsReadBatch) // Marcar mensagens específicas como lidas
 		}
 
 		// Chatwoot Compatibility Routes

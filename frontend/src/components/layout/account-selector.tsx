@@ -33,10 +33,10 @@ return (
 variant="outline"
 role="combobox"
 aria-expanded={open}
-className="w-full justify-between bg-white border-slate-200 hover:bg-slate-50 text-slate-700 shadow-sm"
+className="w-full justify-between bg-card border-border hover:bg-background text-foreground shadow-sm"
 >
 <div className="flex items-center gap-2 overflow-hidden">
-<Building2 size={16} className="shrink-0 text-blue-600" />
+<Building2 size={16} className="shrink-0 text-primary" />
 <span className="truncate font-medium">
 {currentAccount?.name || "Selecionar Conta"}
 </span>

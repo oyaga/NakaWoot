@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Hash, Inbox, CheckCircle2, Clock } from 'lucide-react';
+import { Inbox, CheckCircle2, Clock } from 'lucide-react';
 import { AccountSelector } from './account-selector';
 
 const sections = [
@@ -13,9 +13,9 @@ const sections = [
 
 export function SidebarContext() {
 return (
-<aside className="w-64 border-r bg-slate-50/50 flex flex-col">
+<aside className="w-64 border-r border-border bg-background flex flex-col">
 {/* Seletor de Conta (Empresa) */}
-<div className="p-4 border-b bg-white">
+<div className="p-4 border-b border-border bg-card">
 <AccountSelector />
 </div>
 
@@ -24,14 +24,14 @@ return (
 {sections.map((item) => (
 <button
 key={item.label}
-className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-md text-slate-600 hover:bg-slate-100 transition-colors"
+className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200 active:bg-accent/80"
 >
 <div className="flex items-center gap-3">
-<item.icon size={18} className="text-slate-400" />
+<item.icon size={18} />
 {item.label}
 </div>
 {item.count > 0 && (
-<span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
+<span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-[10px] font-bold">
 {item.count}
 </span>
 )}
@@ -40,9 +40,9 @@ className="w-full flex items-center justify-between px-3 py-2 text-sm font-mediu
 </div>
 
 <div className="mt-6 px-4">
-<h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2">Canais</h3>
+<h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2">Canais</h3>
 <div className="mt-3 space-y-1">
-<div className="text-xs text-slate-500 italic px-3 py-2">
+<div className="text-xs text-muted-foreground italic px-3 py-2">
 Nenhum canal ativo
 </div>
 </div>

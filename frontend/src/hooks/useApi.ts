@@ -6,7 +6,7 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
   const token = session?.access_token
 
   // Pega URL base do env ou default
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:4120')
   const url = `${baseUrl}${endpoint}`
 
   const headers = {

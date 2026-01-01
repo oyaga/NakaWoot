@@ -58,8 +58,6 @@ export default function OnboardingPage() {
         password: formData.password
       })
 
-      console.log('[Onboarding] Success:', response.data)
-
       setSuccess(true)
       toast.success('Conta criada com sucesso!', {
         description: 'Redirecionando para o login...'
@@ -100,7 +98,7 @@ export default function OnboardingPage() {
           <CardContent className="pt-12 pb-8">
             <div className="flex flex-col items-center gap-4 text-center">
               <div className="h-16 w-16 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
-                <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
+                <CheckCircle2 className="h-8 w-8 text-primary" />
               </div>
               <h2 className="text-2xl font-bold text-green-900 dark:text-green-100">
                 Conta criada com sucesso!
@@ -108,10 +106,10 @@ export default function OnboardingPage() {
               <p className="text-sm text-green-700 dark:text-green-300">
                 Bem-vindo ao <strong>Nakawoot</strong>
               </p>
-              <p className="text-xs text-green-600/70 dark:text-green-400/70">
+              <p className="text-xs text-primary/70 /70">
                 Redirecionando para o login...
               </p>
-              <Loader2 className="h-6 w-6 animate-spin text-green-600" />
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
           </CardContent>
         </Card>

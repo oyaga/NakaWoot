@@ -35,11 +35,15 @@ func Init() {
 	err = db.AutoMigrate(
 		&models.Account{},
 		&models.User{},
+		&models.AccountUser{},
 		&models.Inbox{},
+		&models.Integration{},
 		&models.Conversation{},
 		&models.CannedResponse{},
 		&models.Contact{},
 		&models.Message{},
+		&models.MessageReadStatus{},
+		&models.APIToken{},
 	)
 	if err != nil {
 		log.Printf("⚠️ Migration warning: %v", err)

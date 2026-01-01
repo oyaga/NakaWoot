@@ -15,6 +15,8 @@ func HealthCheck(c *gin.Context) {
 		dbStatus = "offline"
 	}
 
+	c.Header("Cache-Control", "public, max-age=86400") // 24 horas
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":   "operational",
 		"database": dbStatus,

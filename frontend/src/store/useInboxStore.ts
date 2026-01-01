@@ -20,7 +20,9 @@ fetchInboxes: async () => {
 set({ isLoading: true })
 try {
 const response = await api.get(`/inboxes`)
-set({ inboxes: response.data })
+// Suporta formato Chatwoot { payload: [...] } e formato direto [...]
+const inboxes = response.data.payload || response.data
+set({ inboxes })
 } catch (error) {
 console.error('Erro ao buscar inboxes:', error)
 } finally {

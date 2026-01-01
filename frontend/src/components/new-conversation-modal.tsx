@@ -11,7 +11,7 @@ export function NewConversationModal() {
 return (
 <Dialog>
 <DialogTrigger asChild>
-<Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+<Button size="sm" className="bg-primary hover:bg-primary">
 <Plus size={16} className="mr-2" /> Nova
 </Button>
 </DialogTrigger>
@@ -36,7 +36,7 @@ return (
 <Label>Destinatário</Label>
 <Input placeholder="Nome ou número de telefone" autoComplete="off" />
 </div>
-<Button className="w-full bg-blue-600 hover:bg-blue-700">Criar Conversa</Button>
+<Button className="w-full bg-primary hover:bg-primary">Criar Conversa</Button>
 </div>
 </DialogContent>
 </Dialog>

@@ -5,7 +5,7 @@ import (
 	"mensager-go/internal/models"
 )
 
-func ListConversationsByAccount(accountID uint) ([]models.Conversation, error) {
+func ListConversationsByAccount(accountID uint, inboxID *uint) ([]models.Conversation, error) {
 	// Usar raw SQL para carregar conversas com contatos via JOIN
 	type ConversationWithContact struct {
 		models.Conversation
@@ -18,7 +18,7 @@ func ListConversationsByAccount(accountID uint) ([]models.Conversation, error) {
 	}
 
 	var results []ConversationWithContact
-	err := db.Instance.
+	query := db.Instance.
 		Table("conversations").
 		Select(`conversations.*,
 			contacts.id as contact_id,
@@ -28,7 +28,14 @@ func ListConversationsByAccount(accountID uint) ([]models.Conversation, error) {
 			contacts.avatar_url as contact_avatar,
 			contacts.identifier as contact_identifier`).
 		Joins("LEFT JOIN contacts ON contacts.id = conversations.contact_id").
-		Where("conversations.account_id = ?", accountID).
+		Where("conversations.account_id = ?", accountID)
+
+	// Aplicar filtro de inbox_id se fornecido
+	if inboxID != nil {
+		query = query.Where("conversations.inbox_id = ?", *inboxID)
+	}
+
+	err := query.
 		Order("conversations.last_activity_at DESC NULLS LAST, conversations.created_at DESC").
 		Scan(&results).Error
 
@@ -70,8 +77,13 @@ func GetActivitiesByConversation(convID uint, accountID uint) ([]models.Message,
 }
 
 // GetConversationByID busca uma conversa pelo ID
-func GetConversationByID(id uint, conversation *models.Conversation) error {
-	return db.Instance.First(conversation, id).Error
+func GetConversationByID(id uint) (*models.Conversation, error) {
+	var conversation models.Conversation
+	err := db.Instance.First(&conversation, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &conversation, nil
 }
 
 // FindOrCreateConversation busca ou cria uma conversa
@@ -125,6 +137,13 @@ func FindOrCreateConversation(accountID uint, inboxID uint, contactID uint) (*mo
 // UpdateConversation atualiza uma conversa
 func UpdateConversation(conversation *models.Conversation) error {
 	return db.Instance.Save(conversation).Error
+}
+
+// UpdateConversationUnreadCount atualiza o contador de mensagens não lidas
+func UpdateConversationUnreadCount(conversationID uint, count int) error {
+	return db.Instance.Model(&models.Conversation{}).
+		Where("id = ?", conversationID).
+		Update("unread_count", count).Error
 }
 
 // ListGroupConversations lista conversas de grupos
@@ -239,9 +258,65 @@ func ListPrivateConversations(accountID uint, inboxID *uint) ([]models.Conversat
 	return conversations, nil
 }
 
+// MarkAllConversationsAsRead marca todas as conversas de uma conta/inbox como lidas para um usuário
+func MarkAllConversationsAsRead(accountID uint, userID uint, inboxID *uint) error {
+	// Buscar IDs das conversas
+	query := db.Instance.Model(&models.Conversation{}).Where("account_id = ?", accountID)
+	if inboxID != nil {
+		query = query.Where("inbox_id = ?", *inboxID)
+	}
+
+	var conversationIDs []uint
+	if err := query.Pluck("id", &conversationIDs).Error; err != nil {
+		return err
+	}
+
+	if len(conversationIDs) == 0 {
+		return nil
+	}
+
+	// 1. Marcar mensagens como lidas na tabela message_read_status (para este usuário específico)
+	// Para cada conversa, precisamos garantir que as mensagens incoming sejam marcadas
+	for _, convID := range conversationIDs {
+		// Buscar mensagens da conversa
+		var messages []models.Message
+		db.Instance.Where("conversation_id = ? AND message_type = 0", convID).Find(&messages)
+
+		for _, msg := range messages {
+			// Criar status de leitura se não existir
+			var status models.MessageReadStatus
+			err := db.Instance.Where("message_id = ? AND user_id = ?", msg.ID, userID).First(&status).Error
+			if err != nil { // record not found
+				db.Instance.Create(&models.MessageReadStatus{
+					MessageID:      msg.ID,
+					UserID:         userID,
+					ConversationID: convID,
+				})
+			}
+		}
+
+		// 2. Marcar status antigo na tabela messages como 'read'
+		db.Instance.Model(&models.Message{}).
+			Where("conversation_id = ? AND message_type = 0", convID).
+			Update("status", "read")
+
+		// 3. Zerar o unread_count da conversa
+		db.Instance.Model(&models.Conversation{}).
+			Where("id = ?", convID).
+			Update("unread_count", 0)
+	}
+
+	return nil
+}
+
 // DeleteConversation exclui uma conversa e suas mensagens associadas
 func DeleteConversation(conversationID uint) error {
-	// Primeiro deletar todas as mensagens da conversa
+	// Primeiro deletar os status de leitura das mensagens
+	if err := db.Instance.Where("conversation_id = ?", conversationID).Delete(&models.MessageReadStatus{}).Error; err != nil {
+		return err
+	}
+
+	// Deletar todas as mensagens da conversa
 	if err := db.Instance.Where("conversation_id = ?", conversationID).Delete(&models.Message{}).Error; err != nil {
 		return err
 	}
@@ -262,6 +337,11 @@ func DeleteConversationsByInbox(inboxID uint) (int64, error) {
 
 	if len(conversationIDs) == 0 {
 		return 0, nil
+	}
+
+	// Deletar os status de leitura das mensagens
+	if err := db.Instance.Where("conversation_id IN ?", conversationIDs).Delete(&models.MessageReadStatus{}).Error; err != nil {
+		return 0, err
 	}
 
 	// Deletar todas as mensagens dessas conversas

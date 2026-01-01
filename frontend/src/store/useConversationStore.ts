@@ -56,6 +56,8 @@ sendMessage: (content: string) => Promise<void>
 addMessage: (message: Message) => void
 updateConversation: (conversation: ConversationSummary) => void
 addConversation: (conversation: ConversationSummary) => void
+removeConversation: (conversationId: number) => void
+removeConversationsByInbox: (inboxId: number) => void
 }
 
 export const useConversationStore = create<ConversationState>((set, get) => ({
@@ -107,16 +109,14 @@ throw error
 
 // Realtime update handlers
 addMessage: (message) => {
-const { activeConversation, messages } = get()
-// Só adicionar se a mensagem for da conversa ativa
-if (activeConversation && message.conversation_id === activeConversation.id) {
+const { messages } = get()
+// Sempre adicionar a mensagem (componentes filtram por conversation_id)
 // Verificar se a mensagem já não existe (evitar duplicatas)
 const exists = messages.some(m => m.id === message.id)
 if (!exists) {
 set((state) => ({
 messages: [...state.messages, message]
 }))
-}
 }
 },
 
@@ -125,7 +125,10 @@ set((state) => {
 const index = state.conversations.findIndex(c => c.id === conversation.id)
 if (index !== -1) {
 const updated = [...state.conversations]
-updated[index] = conversation
+// Remove da posição atual
+updated.splice(index, 1)
+// Adiciona no topo (nova mensagem = primeiro da lista)
+updated.unshift(conversation)
 return { conversations: updated }
 }
 return state
@@ -140,6 +143,40 @@ if (!exists) {
 return { conversations: [conversation, ...state.conversations] }
 }
 return state
+})
+},
+
+removeConversation: (conversationId) => {
+set((state) => {
+const filtered = state.conversations.filter(c => c.id !== conversationId)
+
+// Se a conversa ativa foi deletada, limpar seleção
+const newActiveConversation = state.activeConversation?.id === conversationId
+  ? null
+  : state.activeConversation
+
+return {
+conversations: filtered,
+activeConversation: newActiveConversation,
+messages: newActiveConversation ? state.messages : []
+}
+})
+},
+
+removeConversationsByInbox: (inboxId) => {
+set((state) => {
+// Filtrar conversas que não pertencem a esta inbox
+const filtered = state.conversations.filter(c => c.inbox_name !== inboxId.toString())
+
+// Se a conversa ativa pertencia à inbox deletada, limpar seleção
+const activeConvBelongsToInbox = state.activeConversation &&
+  state.conversations.find(c => c.id === state.activeConversation!.id)?.inbox_name === inboxId.toString()
+
+return {
+conversations: filtered,
+activeConversation: activeConvBelongsToInbox ? null : state.activeConversation,
+messages: activeConvBelongsToInbox ? [] : state.messages
+}
 })
 }
 }))

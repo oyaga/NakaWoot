@@ -96,6 +96,7 @@ func SendMessageToConversation(c *gin.Context) {
 	conversationIDStr := c.Param("id")
 	conversationID, err := strconv.ParseUint(conversationIDStr, 10, 32)
 	if err != nil {
+		log.Printf("[SendMessageToConversation] Invalid conversation_id: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid conversation_id"})
 		return
 	}
@@ -108,16 +109,22 @@ func SendMessageToConversation(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
+		log.Printf("[SendMessageToConversation] Invalid input: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	log.Printf("[SendMessageToConversation] Processing message for conversation %d: content=%s, contentType=%s",
+		conversationID, input.Content, input.ContentType)
+
 	userIDVal, exists := c.Get("user_id")
 	if !exists {
+		log.Printf("[SendMessageToConversation] user_id not found in context")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
 		return
 	}
 	userID := userIDVal.(uint)
+	log.Printf("[SendMessageToConversation] Found user_id in context: %d", userID)
 
 	if input.ContentType == "" {
 		input.ContentType = "text"
@@ -130,11 +137,22 @@ func SendMessageToConversation(c *gin.Context) {
 		return
 	}
 
-	// Broadcast em tempo real
+	log.Printf("[SendMessageToConversation] Message sent successfully: ID=%d", message.ID)
+
+	// Broadcast em tempo real para a conversa E para a conta
 	BroadcastToConversation(uint(conversationID), RealtimeEvent{
 		Type:    "message.new",
 		Payload: message,
 	})
+
+	// Também broadcast para a conta (RealtimeProvider conecta por conta, não por conversa)
+	accountIDVal, _ := c.Get("account_id")
+	if accountID, ok := accountIDVal.(uint); ok {
+		BroadcastToAccount(accountID, RealtimeEvent{
+			Type:    "message.new",
+			Payload: message,
+		})
+	}
 
 	c.JSON(http.StatusCreated, message)
 }
@@ -171,14 +189,76 @@ func MarkConversationAsRead(c *gin.Context) {
 		return
 	}
 
-	// Zerar contador de não lidas
-	var conversation models.Conversation
-	if err := repository.GetConversationByID(uint(conversationID), &conversation); err == nil {
-		conversation.UnreadCount = 0
-		repository.UpdateConversation(&conversation)
+	// O trigger update_conversation_unread_count vai atualizar automaticamente o unread_count
+	// Mas vamos forçar uma atualização também para garantir
+	conversation, err := repository.GetConversationByID(uint(conversationID))
+	if err == nil {
+		// Broadcast atualização da conversa
+		accountIDVal, _ := c.Get("account_id")
+		if accountID, ok := accountIDVal.(uint); ok {
+			BroadcastToAccount(accountID, RealtimeEvent{
+				Type:    "conversation.updated",
+				Payload: conversation,
+			})
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "messages marked as read"})
+}
+
+// MarkMessagesAsReadInput input para marcar mensagens específicas como lidas
+type MarkMessagesAsReadInput struct {
+	MessageIDs []uint `json:"message_ids" binding:"required"`
+}
+
+// MarkMessagesAsReadBatch marca mensagens específicas como lidas
+func MarkMessagesAsReadBatch(c *gin.Context) {
+	var input MarkMessagesAsReadInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if len(input.MessageIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "message_ids cannot be empty"})
+		return
+	}
+
+	if err := repository.MarkSpecificMessagesAsRead(input.MessageIDs); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to mark messages as read"})
+		return
+	}
+
+	// O trigger vai atualizar o unread_count automaticamente
+	// Broadcast para notificar clientes
+	accountIDVal, _ := c.Get("account_id")
+	if accountID, ok := accountIDVal.(uint); ok {
+		// Buscar as conversas afetadas para broadcast
+		var messages []models.Message
+		db.Instance.Where("id IN ?", input.MessageIDs).Find(&messages)
+
+		// Agrupar por conversation_id
+		conversationIDs := make(map[uint]bool)
+		for _, msg := range messages {
+			conversationIDs[msg.ConversationID] = true
+		}
+
+		// Broadcast para cada conversa afetada
+		for convID := range conversationIDs {
+			conversation, err := repository.GetConversationByID(convID)
+			if err == nil {
+				BroadcastToAccount(accountID, RealtimeEvent{
+					Type:    "conversation.updated",
+					Payload: conversation,
+				})
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "messages marked as read",
+		"count":        len(input.MessageIDs),
+	})
 }
 
 // DeleteMessage deleta uma mensagem (soft delete ou hard delete)
@@ -429,8 +509,8 @@ func CreateChatwootMessage(c *gin.Context) {
 	accountID := accountVal.(uint)
 
 	// Buscar a conversa para pegar o inbox_id
-	var conversation models.Conversation
-	if err := repository.GetConversationByID(uint(conversationID), &conversation); err != nil {
+	conversation, err := repository.GetConversationByID(uint(conversationID))
+	if err != nil {
 		log.Printf("[CreateChatwootMessage] Error fetching conversation: %v", err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "conversation not found"})
 		return
@@ -506,7 +586,13 @@ func CreateChatwootMessage(c *gin.Context) {
 		Payload: message,
 	})
 
-	// Broadcast também para a conta (para lista de conversas)
+	// Também broadcast message.new para a conta (RealtimeProvider conecta por conta)
+	BroadcastToAccount(accountID, RealtimeEvent{
+		Type:    "message.new",
+		Payload: message,
+	})
+
+	// Broadcast também para a conta (para atualizar lista de conversas)
 	log.Printf("[CreateChatwootMessage] Broadcasting conversation.updated to account %d", accountID)
 	BroadcastToAccount(accountID, RealtimeEvent{
 		Type:    "conversation.updated",

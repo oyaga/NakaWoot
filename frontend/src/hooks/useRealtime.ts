@@ -38,7 +38,6 @@ export function useRealtime({ onEvent, conversationId }: UseRealtimeOptions = {}
       reconnectTimeoutRef.current = undefined
     }
     if (eventSourceRef.current) {
-      console.log('[useRealtime] Disconnecting')
       eventSourceRef.current.close()
       eventSourceRef.current = null
     }
@@ -48,7 +47,6 @@ export function useRealtime({ onEvent, conversationId }: UseRealtimeOptions = {}
     const token = session?.access_token
 
     if (!token) {
-      console.log('[useRealtime] No token, skipping connection')
       return
     }
 
@@ -60,7 +58,9 @@ export function useRealtime({ onEvent, conversationId }: UseRealtimeOptions = {}
       // Cleanup existing if any (shouldn't happen usually due to effect cleanup)
       cleanup()
 
-      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
+      const baseUrl = typeof window !== 'undefined'
+        ? window.location.origin
+        : (process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4120')
       const params = new URLSearchParams()
       params.append('token', token)
       
@@ -75,8 +75,6 @@ export function useRealtime({ onEvent, conversationId }: UseRealtimeOptions = {}
       
       const url = `${baseUrl}/api/v1/realtime?${params.toString()}`
 
-      console.log('[useRealtime] Connecting to:', baseUrl + '/api/v1/realtime')
-
       try {
         const eventSource = new EventSource(url, { withCredentials: false })
 
@@ -85,7 +83,6 @@ export function useRealtime({ onEvent, conversationId }: UseRealtimeOptions = {}
             eventSource.close()
             return
           }
-          console.log('[useRealtime] Connection established')
           reconnectAttemptsRef.current = 0
         }
 
@@ -97,8 +94,6 @@ export function useRealtime({ onEvent, conversationId }: UseRealtimeOptions = {}
             if (data.type === 'heartbeat' || data.type === 'connection.established') {
               return
             }
-
-            console.log('[useRealtime] Event received:', data.type)
 
             if (onEventRef.current) {
               onEventRef.current(data)
@@ -112,16 +107,12 @@ export function useRealtime({ onEvent, conversationId }: UseRealtimeOptions = {}
           if (!isMounted) return
           
           const state = eventSource.readyState
-          if (state !== EventSource.CONNECTING) {
-            console.log('[useRealtime] Connection interrupted')
-          }
-
+          
           eventSource.close()
           eventSourceRef.current = null
 
           if (reconnectAttemptsRef.current < maxReconnectAttempts) {
             const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000)
-            console.log(`[useRealtime] Reconnecting in ${delay}ms...`)
             
             reconnectTimeoutRef.current = setTimeout(() => {
               reconnectAttemptsRef.current++
@@ -157,7 +148,6 @@ export function useRealtime({ onEvent, conversationId }: UseRealtimeOptions = {}
         // Since we moved connect inside effect, we can't easily expose it.
         // But the previous implementation had a reconnect function.
         // If we really need it, we can use a trigger state.
-        console.warn('[useRealtime] Manual reconnect called but controlled by effect')
     }
   }
 }

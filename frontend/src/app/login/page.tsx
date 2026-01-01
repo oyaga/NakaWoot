@@ -28,13 +28,11 @@ export default function LoginPage() {
   // Verificar se é primeira instalação e se já tem sessão
   useEffect(() => {
     const checkInstallationAndSession = async () => {
-      console.log('[LoginPage] Checking installation status and session...')
 
       // Verificar se é primeira instalação
       try {
         const { data } = await api.get('/installation/check')
         if (data.is_first_installation) {
-          console.log('[LoginPage] First installation detected, redirecting to onboarding')
           setIsFirstInstallation(true)
           router.replace('/onboarding')
           return
@@ -45,7 +43,6 @@ export default function LoginPage() {
 
       // Se já tem session no store, redirecionar
       if (session) {
-        console.log('[LoginPage] Session found in store, redirecting to dashboard')
         router.replace('/dashboard')
         return
       }
@@ -54,14 +51,12 @@ export default function LoginPage() {
       const { data: { session: supabaseSession } } = await supabase.auth.getSession()
 
       if (supabaseSession) {
-        console.log('[LoginPage] Session found in Supabase, redirecting to dashboard')
         setSession(supabaseSession)
         setUser(supabaseSession.user)
         router.replace('/dashboard')
         return
       }
 
-      console.log('[LoginPage] No existing session found')
       setCheckingSession(false)
     }
 
@@ -73,8 +68,6 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    console.log('[LoginPage] Attempting login for:', email)
-
     try {
       // Tentar login via API local primeiro
       const { data } = await api.post('/auth/login', {
@@ -83,7 +76,6 @@ export default function LoginPage() {
       })
 
       if (data.success) {
-        console.log('[LoginPage] Local login successful!', data)
 
         // Tentar login no Supabase
         const { data: supabaseData, error: authError } = await supabase.auth.signInWithPassword({
@@ -93,7 +85,6 @@ export default function LoginPage() {
 
         if (authError) {
           console.error('[LoginPage] Supabase login error:', authError)
-          console.log('[LoginPage] Creating fake session from local login data')
 
           // Criar sessão fake a partir dos dados do backend
           const fakeSession = {
@@ -125,7 +116,6 @@ export default function LoginPage() {
         }
 
         if (supabaseData.session) {
-          console.log('[LoginPage] Supabase login successful!')
           setSession(supabaseData.session)
           setUser(supabaseData.session.user)
           toast.success('Login realizado com sucesso!')

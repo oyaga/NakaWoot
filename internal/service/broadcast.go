@@ -19,12 +19,21 @@ var BroadcastToAccountFunc func(accountID uint, event BroadcastEvent)
 func NotifyNewMessage(message *models.Message) {
 	if BroadcastToConversationFunc != nil {
 		log.Printf("[NotifyNewMessage] Broadcasting message.new - ID: %d, ConvID: %d, Content: %s", message.ID, message.ConversationID, message.Content)
+		// Broadcast para conversação específica (clientes conectados a essa conversa)
 		BroadcastToConversationFunc(message.ConversationID, BroadcastEvent{
 			Type:    "message.new",
 			Payload: message,
 		})
 	} else {
 		log.Printf("[NotifyNewMessage] WARNING: BroadcastToConversationFunc is nil!")
+	}
+
+	// TAMBÉM broadcast para a conta (para clientes conectados globalmente)
+	if BroadcastToAccountFunc != nil {
+		BroadcastToAccountFunc(message.AccountID, BroadcastEvent{
+			Type:    "message.new",
+			Payload: message,
+		})
 	}
 }
 

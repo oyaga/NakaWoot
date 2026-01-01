@@ -18,8 +18,11 @@ UPDATE public.inboxes
 SET metadata = '{
 "instance_name": "MensagerNK_Primary",
 "provider": "evolution",
-"webhook_url": "http://localhost:8080/api/v1/webhooks/evolution"
-}'::jsonb
+  jsonb_build_object(
+    "webhook_url", "http://localhost:4120/api/v1/webhooks/evolution",
+    "docs", "https://doc.evolution-api.com"
+  )
+);}'::jsonb
 WHERE name = 'WhatsApp Principal';
 
 -- Habilitar RLS no log para debug do Admin

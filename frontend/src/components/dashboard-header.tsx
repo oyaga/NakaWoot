@@ -32,10 +32,10 @@ router.push('/login')
 }
 
 return (
-<header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0">
+<header className="h-16 bg-card border-b border-border flex items-center justify-between px-8 shrink-0">
 <div className="flex items-center gap-2">
-<h2 className="text-lg font-semibold text-slate-800">Dashboard</h2>
-{isLoading && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
+<h2 className="text-lg font-semibold text-foreground">Dashboard</h2>
+{isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
 </div>
 
 <div className="flex items-center gap-4">
@@ -58,7 +58,7 @@ return (
 </div>
 </DropdownMenuLabel>
 <DropdownMenuSeparator />
-<DropdownMenuItem className="text-xs text-slate-500">
+<DropdownMenuItem className="text-xs text-muted-foreground">
 Conta ID: {profile?.account_id || 'Carregando...'}
 </DropdownMenuItem>
 <DropdownMenuSeparator />

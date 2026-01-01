@@ -2,15 +2,12 @@ version: '3.8'
 
 services:
   app:
-    image: oyaga/nakawoot:latest
-    restart: always
+    image: ghcr.io/seu-usuario/mensager-go:latest
     ports:
-      - "8080:8080"
+      - "4120:4120"
     environment:
-      PORT: "8080"
-      
-      # Database Config (Conectando ao supabase_db da rede AikaNet)
-      DB_HOST: "supabase_db"
+      PORT: "4120"
+      DB_HOST: "supabase-db"
       DB_PORT: "5432"
       DB_USER: "supabase_admin"
       DB_PASSWORD: "0f30252de114094b71d49f657f5776dd"
@@ -18,52 +15,50 @@ services:
       DB_SSLMODE: "disable"
       
       # Supabase Config
-      SUPABASE_URL: "http://supabase_kong:8000"
+      SUPABASE_URL: "http://supabase_supabase_kong:8000"
       SUPABASE_JWT_SECRET: "02ed0e4fd27f8d662016a0d9bb495fcdd0c90d7f"
       SUPABASE_SERVICE_ROLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogInNlcnZpY2Vfcm9sZSIsCiAgImlzcyI6ICJzdXBhYmFzZSIsCiAgImlhdCI6IDE3MTUwNTA4MDAsCiAgImV4cCI6IDE4NzI4MTcyMDAKfQ.vi4I60GYr6zSeGUjcuI-iu-YY7gSq2yqOvnGK2rMv8k"
       SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNzE1MDUwODAwLAogICJleHAiOiAxODcyODE3MjAwCn0.p97SPDUBrtdz7FOYcnCWcsSp0a2ebATVgbNM9xOy4Xg"
       
-      # Storage Config
-      USE_SUPABASE_STORAGE: "true"
-      SUPABASE_STORAGE_BUCKET: "mensager-media"
-      
+      # Storage Config (MinIO - compartilhado com Evolution-Go)
+      USE_MINIO: "true"
+      MINIO_ENDPOINT: "minio_minio:9000"
+      MINIO_ACCESS_KEY: "AikaDesign"
+      MINIO_SECRET_KEY: "@Minio_Nakamura_s3_329263"
+      MINIO_BUCKET: "evolution-media"
+      MINIO_USE_SSL: "false"
+
       # Frontend Path (Internal)
       FRONTEND_PATH: "/app/manager/dist"
-      
-      # URL pública para acesso a mídias (Ajuste para seu domínio real se necessário)
+
+      # URL pública para acesso a mídias
       MEDIA_BASE_URL: "https://nakawoot.aikanakamura.com/media"
+
+      # Desabilitar Supabase Storage (usar apenas MinIO)
+      USE_SUPABASE_STORAGE: "false"
 
     networks:
       - AikaNet
 
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/v1/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:4120/api/v1/health"]
       interval: 10s
       timeout: 3s
-      retries: 10
-
+      retries: 3
     deploy:
       mode: replicated
       replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
       labels:
-        - traefik.enable=true
-        - traefik.http.routers.nakawoot.rule=Host(`nakawoot.aikanakamura.com`)
-        - traefik.http.services.nakawoot.loadbalancer.server.port=8080
-        - traefik.http.routers.nakawoot.service=nakawoot
-        - traefik.http.routers.nakawoot.entrypoints=websecure
-        - traefik.http.routers.nakawoot.tls.certresolver=letsencryptresolver
-        - traefik.http.routers.nakawoot.tls=true
-        - traefik.docker.network=AikaNet
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-        reservations:
-          cpus: '0.2'
-          memory: 200M
+        - "traefik.enable=true"
+        - "traefik.http.routers.nakawoot.rule=Host(`api.seu-dominio.com`)"
+        - "traefik.http.routers.nakawoot.entrypoints=websecure"
+        - "traefik.http.routers.nakawoot.tls.certresolver=myresolver"
+        - "traefik.http.services.nakawoot.loadbalancer.server.port=4120"
 
 networks:
   AikaNet:

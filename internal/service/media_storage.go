@@ -11,6 +11,9 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 // MediaStorage interface para abstração de storage
@@ -145,10 +148,10 @@ func GetExtensionFromMimeType(mimeType string) string {
 
 // SupabaseMediaStorage implementação usando Supabase Storage
 type SupabaseMediaStorage struct {
-	supabaseURL    string
-	supabaseKey    string
-	bucketName     string
-	httpClient     *http.Client
+	supabaseURL string
+	supabaseKey string
+	bucketName  string
+	httpClient  *http.Client
 }
 
 // NewSupabaseMediaStorage cria uma nova instância de storage do Supabase
@@ -322,4 +325,142 @@ func (s *SupabaseMediaStorage) ListFiles(ctx context.Context, prefix string) ([]
 	}
 
 	return fileNames, nil
+}
+
+// MinioMediaStorage implementação usando MinIO (S3 compatível)
+type MinioMediaStorage struct {
+	client     *minio.Client
+	bucketName string
+	publicURL  string
+}
+
+// NewMinioMediaStorage cria uma nova instância de storage MinIO
+func NewMinioMediaStorage(endpoint, accessKey, secretKey, bucketName string, useSSL bool, publicURL string) (*MinioMediaStorage, error) {
+	// Initialize minio client object.
+	minioClient, err := minio.New(endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
+		Secure: useSSL,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize minio client: %w", err)
+	}
+
+	storage := &MinioMediaStorage{
+		client:     minioClient,
+		bucketName: bucketName,
+		publicURL:  publicURL,
+	}
+
+	// Verificar se bucket existe
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	exists, err := minioClient.BucketExists(ctx, bucketName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check if bucket exists: %w", err)
+	}
+
+	if !exists {
+		// Tentar criar bucket se não existir
+		err = minioClient.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create bucket: %w", err)
+		}
+		
+		// Configurar política pública para o bucket (opcional, mas útil para acesso direto)
+		policy := fmt.Sprintf(`{"Version": "2012-10-17","Statement": [{"Action": ["s3:GetObject"],"Effect": "Allow","Principal": {"AWS": ["*"]},"Resource": ["arn:aws:s3:::%s/*"],"Sid": ""}]}`, bucketName)
+		err = minioClient.SetBucketPolicy(ctx, bucketName, policy)
+		if err != nil {
+			// Apenas logar erro, não falhar (pode não ter permissão)
+			fmt.Printf("Warning: failed to set bucket policy: %v\n", err)
+		}
+	}
+
+	return storage, nil
+}
+
+// Store salva um arquivo no MinIO e retorna a URL de acesso
+func (s *MinioMediaStorage) Store(ctx context.Context, data []byte, fileName string, contentType string) (string, error) {
+	reader := bytes.NewReader(data)
+	objectSize := int64(len(data))
+
+	// Upload do arquivo
+	info, err := s.client.PutObject(ctx, s.bucketName, fileName, reader, objectSize, minio.PutObjectOptions{
+		ContentType: contentType,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to upload to MinIO: %w", err)
+	}
+
+	fmt.Printf("Successfully uploaded %s of size %d\n", fileName, info.Size)
+
+	// Retornar URL pública (via servidor local /media ou direta se configurada)
+	publicFileURL := fmt.Sprintf("%s/%s", s.publicURL, fileName)
+	return publicFileURL, nil
+}
+
+// GetURL retorna a URL pública de um arquivo no MinIO
+func (s *MinioMediaStorage) GetURL(ctx context.Context, fileName string) (string, error) {
+	// Retornar URL via servidor local /media
+	url := fmt.Sprintf("%s/%s", s.publicURL, fileName)
+	return url, nil
+}
+
+// Download faz download de uma URL e retorna os dados e o MIME type
+func (s *MinioMediaStorage) Download(ctx context.Context, url string) ([]byte, string, error) {
+	// Criar contexto com timeout
+	downloadCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	// Criar requisição HTTP (para download externo)
+	req, err := http.NewRequestWithContext(downloadCtx, "GET", url, nil)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	client := &http.Client{Timeout: 5 * time.Minute}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to download: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("download failed with status: %d", resp.StatusCode)
+	}
+
+	// Ler dados
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Obter MIME type
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = http.DetectContentType(data)
+	}
+
+	return data, contentType, nil
+}
+
+// GetFromMinio faz download diretamente do MinIO usando SDK
+func (s *MinioMediaStorage) GetFromMinio(ctx context.Context, fileName string) ([]byte, string, error) {
+	object, err := s.client.GetObject(ctx, s.bucketName, fileName, minio.GetObjectOptions{})
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get object from MinIO: %w", err)
+	}
+	defer object.Close()
+
+	stat, err := object.Stat()
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get object stat: %w", err)
+	}
+
+	data, err := io.ReadAll(object)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to read object data: %w", err)
+	}
+
+	return data, stat.ContentType, nil
 }

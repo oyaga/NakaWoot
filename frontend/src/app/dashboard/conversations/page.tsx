@@ -10,11 +10,11 @@ import {
   Search, Send, MoreVertical, Inbox, MessageSquare,
   Paperclip, Image as ImageIcon, FileText, Grip, Check, CheckCheck, X,
   Reply, Copy, Trash2, Edit2, Bell, BellOff, Volume2, Download, Mic,
-  CheckSquare, Square, Sparkles, Plus
+  CheckSquare, Square, Sparkles, Plus, CheckCircle2
 } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/api'
-// useAuthStore não é mais necessário aqui - SSE é gerenciado pelo RealtimeProvider
+import { useConversationStore } from '@/store/useConversationStore'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
@@ -39,7 +39,6 @@ interface Contact {
   phone_number: string
   identifier?: string
   avatar_url?: string
-  thumbnail?: string
 }
 
 interface Conversation {
@@ -88,6 +87,13 @@ export default function ConversationsPage() {
   const [loading, setLoading] = useState(true)
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [activeConversation, setActiveConversation] = useState<number | null>(null)
+  const activeConversationRef = useRef<number | null>(null)
+
+  // Manter ref sincronizado com o state para uso em callbacks de eventos (evitar stale closure)
+  useEffect(() => {
+    activeConversationRef.current = activeConversation
+  }, [activeConversation])
+
   const [messageInput, setMessageInput] = useState('')
   const [sending, setSending] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -127,14 +133,24 @@ export default function ConversationsPage() {
   // SSE é gerenciado globalmente pelo RealtimeProvider
 
   const scrollToBottom = (instant: boolean = false) => {
-    if (messagesEndRef.current) {
-      // Usar setTimeout para garantir que o DOM foi atualizado
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ 
+    const performScroll = () => {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ 
           behavior: instant ? 'instant' : 'smooth', 
           block: 'end' 
         })
-      }, instant ? 50 : 100)
+      }
+    }
+
+    // Tenta imediatamente se possível
+    performScroll()
+
+    // E tenta novamente após um curto delay para garantir renderização do DOM
+    setTimeout(performScroll, instant ? 50 : 100)
+    
+    // Se for instantâneo (carregamento inicial), tenta uma terceira vez um pouco depois
+    if (instant) {
+      setTimeout(performScroll, 200)
     }
   }
 
@@ -145,6 +161,151 @@ export default function ConversationsPage() {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
     if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
+  }
+
+  // Helper para ordenar conversas
+  // Prioridade: 1) last_activity_at
+  //             2) created_at
+  const sortConversations = (params: Conversation[]) => {
+    return [...params].sort((a, b) => {
+      const timestampA = a.last_activity_at || a.created_at || new Date(0).toISOString()
+      const timestampB = b.last_activity_at || b.created_at || new Date(0).toISOString()
+
+      const dateA = new Date(timestampA).getTime()
+      const dateB = new Date(timestampB).getTime()
+
+      return dateB - dateA
+    })
+  }
+
+  // REMOVIDO: Contadores separados não são mais necessários
+  // O unread_count já vem do backend em cada conversation
+
+  const showNotification = (message: Message) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const conv = conversations.find(c => c.id === message.conversation_id)
+      const contactName = conv?.contact?.name || 'Novo contato'
+
+      new Notification(`Nova mensagem de ${contactName}`, {
+        body: message.content || 'Mídia recebida',
+        icon: '/logo.png',
+        tag: `message-${message.id}`
+      })
+    }
+
+    // Toast como fallback
+    toast.info('Nova mensagem recebida', {
+      description: message.content || 'Mídia recebida'
+    })
+  }
+
+  const handleNewMessage = (message: Message) => {
+
+    // Verificar se a mensagem é da conversa ativa usando o Ref para garantir valor atualizado
+    if (message.conversation_id === activeConversationRef.current) {
+      setMessages(prev => {
+        const exists = prev.some(m => {
+          const isDuplicate = m.id === message.id || (m.whatsapp_message_id && message.whatsapp_message_id && m.whatsapp_message_id === message.whatsapp_message_id)
+          return isDuplicate
+        })
+
+        if (exists) return prev
+        return [...prev, message]
+      })
+
+      // Scroll para baixo e marcar como lida
+      scrollToBottom()
+      if (activeConversationRef.current) {
+        api.post(`/conversations/${activeConversationRef.current}/read`).catch(console.error)
+      }
+    }
+
+    // Se a nova mensagem não é nossa e não estamos nela, mostrar notificação
+    if (!message.is_from_me && message.message_type !== 1 && notifications && message.conversation_id !== activeConversationRef.current) {
+      showNotification(message)
+    }
+
+    // Atualizar lista de conversas em tempo real
+    setConversations(prev => {
+      const conversationIndex = prev.findIndex(c => c.id === message.conversation_id)
+
+      if (conversationIndex === -1) {
+        if (inboxId && message.inbox_id.toString() !== inboxId) return prev
+        return prev
+      }
+
+      const updated = [...prev]
+      const conv = { ...updated[conversationIndex] }
+
+      // Atualizar timestamp local - isso mantém a conversa no topo até ser aberta
+      const now = new Date().toISOString()
+      conv.last_activity_at = now
+
+      // Incrementar contador se não for a conversa ativa E se for mensagem incoming
+      if (activeConversationRef.current !== message.conversation_id && !message.is_from_me && message.message_type !== 1) {
+        conv.unread_count = (conv.unread_count || 0) + 1
+      }
+
+      updated[conversationIndex] = conv
+      return sortConversations(updated)
+    })
+
+    // Também atualizar filteredConversations
+    setFilteredConversations(prev => {
+      const conversationIndex = prev.findIndex(c => c.id === message.conversation_id)
+      if (conversationIndex === -1) return prev
+
+      const updated = [...prev]
+      const conv = { ...updated[conversationIndex] }
+
+      // Atualização automática via backend (conversation.updated event)
+      const now = new Date().toISOString()
+      conv.last_activity_at = now
+
+      if (activeConversationRef.current !== message.conversation_id && !message.is_from_me && message.message_type !== 1) {
+        // Mantém sincronizado
+        conv.unread_count = (conv.unread_count || 0) + 1
+      }
+
+      updated[conversationIndex] = conv
+      return sortConversations(updated)
+    })
+  }
+
+  const handleMessageUpdated = (message: Message) => {
+    setMessages(prev => prev.map(m =>
+      m.id === message.id ? message : m
+    ))
+  }
+
+  const handleConversationNew = (conversation: Conversation) => {
+    setConversations(prev => {
+      // Verificar se a conversa já existe (evitar duplicatas)
+      const exists = prev.some(c => c.id === conversation.id)
+      if (exists) return prev
+
+      // Adicionar nova conversa no topo da lista
+      return [conversation, ...prev]
+    })
+  }
+
+  const handleConversationUpdated = (conversation: Conversation) => {
+
+    setConversations(prev => {
+      const updated = prev.map(c =>
+        c.id === conversation.id ? conversation : c
+      )
+      // Re-ordenar após atualizar
+      return sortConversations(updated)
+    })
+
+    setFilteredConversations(prev => {
+      const updated = prev.map(c =>
+        c.id === conversation.id ? conversation : c
+      )
+      // Re-ordenar após atualizar
+      return sortConversations(updated)
+    })
   }
 
   // Busca de conversas
@@ -189,12 +350,64 @@ export default function ConversationsPage() {
   useEffect(() => {
     if (activeConversation) {
       fetchMessages(activeConversation)
+
+      // Zerar unread_count localmente (feedback imediato)
+      setConversations(prev => prev.map(c =>
+        c.id === activeConversation ? { ...c, unread_count: 0 } : c
+      ))
+
+      setFilteredConversations(prev => prev.map(c =>
+        c.id === activeConversation ? { ...c, unread_count: 0 } : c
+      ))
+
+      // Marcar como lida no backend (que atualiza no banco e envia broadcast)
+      api.post(`/conversations/${activeConversation}/read`).catch(console.error)
     }
   }, [activeConversation])
 
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  // Detectar quando a conversa ativa foi deletada
+  useEffect(() => {
+    if (activeConversation) {
+      const conversationExists = conversations.some(c => c.id === activeConversation)
+      if (!conversationExists) {
+        setActiveConversation(null)
+        setMessages([])
+        toast.info('A conversa foi deletada')
+      }
+    }
+  }, [activeConversation, conversations])
+
+  // Conectar ao store para receber eventos em tempo real
+  useEffect(() => {
+    const unsubscribe = useConversationStore.subscribe((state, prevState) => {
+      // Quando uma nova mensagem chega via realtime
+      if (state.messages.length > prevState.messages.length) {
+        const newMessages = state.messages.filter(
+          msg => !prevState.messages.some(m => m.id === msg.id)
+        )
+
+        newMessages.forEach(newMsg => {
+          handleNewMessage(newMsg as unknown as Message)
+        })
+      }
+
+      // Quando uma conversa é atualizada via realtime
+      state.conversations.forEach(conv => {
+        const prevConv = prevState.conversations.find(c => c.id === conv.id)
+        // Verificar se last_activity_at mudou (indica atualização)
+        if (prevConv && (conv as unknown as Conversation).last_activity_at !== (prevConv as unknown as Conversation).last_activity_at) {
+          handleConversationUpdated(conv as unknown as Conversation)
+        }
+      })
+    })
+
+    return () => unsubscribe()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Handle mouse resize
   useEffect(() => {
@@ -224,141 +437,9 @@ export default function ConversationsPage() {
   // Handlers para eventos SSE recebidos via RealtimeProvider
   // Os eventos são processados no realtime-provider.tsx e propagados via stores
 
-  const handleNewMessage = (message: Message) => {
-    console.log('[handleNewMessage] Received message:', {
-      messageId: message.id,
-      conversationId: message.conversation_id,
-      activeConversation: activeConversation,
-      content: message.content,
-      whatsapp_message_id: message.whatsapp_message_id
-    })
 
-    // Verificar se a mensagem é da conversa ativa
-    if (message.conversation_id === activeConversation) {
-      console.log('[handleNewMessage] Message is for active conversation, adding to state')
-      setMessages(prev => {
-        console.log('[handleNewMessage] Current messages count:', prev.length)
-        // Verificar se a mensagem já existe (evitar duplicatas)
-        const exists = prev.some(m => {
-          const isDuplicate = m.id === message.id || (m.whatsapp_message_id && message.whatsapp_message_id && m.whatsapp_message_id === message.whatsapp_message_id)
-          if (isDuplicate) {
-            console.log('[handleNewMessage] Found duplicate:', {
-              existingId: m.id,
-              newId: message.id,
-              existingWhatsappId: m.whatsapp_message_id,
-              newWhatsappId: message.whatsapp_message_id
-            })
-          }
-          return isDuplicate
-        })
 
-        if (exists) {
-          console.log('[handleNewMessage] Message already exists, skipping')
-          return prev
-        }
 
-        console.log('[handleNewMessage] Adding new message to list, new count will be:', prev.length + 1)
-        return [...prev, message]
-      })
-
-      // Scroll para baixo ao receber nova mensagem
-      scrollToBottom()
-
-      // Se a nova mensagem não é nossa, mostrar notificação
-      console.log('[Notification Debug]', { is_from_me: message.is_from_me, message_type: message.message_type, notifications })
-      if (!message.is_from_me && message.message_type !== 1 && notifications) {
-        console.log('[Notification Debug] Showing notification for message:', message.id)
-        showNotification(message)
-      } else {
-        console.log('[Notification Debug] Skipping notification - fromMe or outgoing or notifications disabled')
-      }
-
-      // Atualizar lista de conversas em tempo real
-      setConversations(prev => {
-        const conversationIndex = prev.findIndex(c => c.id === message.conversation_id)
-
-        // Se a conversa não existe na lista, verificar se deveria estar (por inbox)
-        if (conversationIndex === -1) {
-          // Se temos filtro de inbox e a mensagem não é dessa inbox, ignorar
-          if (inboxId && message.inbox_id.toString() !== inboxId) {
-            return prev
-          }
-          // Caso contrário, a conversa será adicionada quando fetchConversations for chamado
-          return prev
-        }
-
-        const updatedConversation = { ...prev[conversationIndex] }
-
-        // Atualizar timestamp
-        updatedConversation.last_activity_at = new Date().toISOString()
-
-        // Incrementar contador se não for a conversa ativa E se for mensagem incoming (message_type = 0)
-        if (activeConversation !== message.conversation_id && !message.is_from_me && message.message_type !== 1) {
-          updatedConversation.unread_count = (updatedConversation.unread_count || 0) + 1
-          console.log('[Badge Debug] Incremented unread_count for conversation', message.conversation_id, 'to', updatedConversation.unread_count)
-        } else {
-          console.log('[Badge Debug] NOT incrementing unread_count -', {
-            isActiveConv: activeConversation === message.conversation_id,
-            isFromMe: message.is_from_me,
-            messageType: message.message_type
-          })
-        }
-
-        // Remover a conversa da posição atual e adicionar no topo
-        const newConversations = [...prev]
-        newConversations.splice(conversationIndex, 1)
-        return [updatedConversation, ...newConversations]
-      })
-
-      // Marcar como lida se a conversa está ativa
-      if (activeConversation === message.conversation_id) {
-        api.post(`/conversation/${activeConversation}/read`).catch(console.error)
-      }
-    }
-  }
-
-  const handleMessageUpdated = (message: Message) => {
-    setMessages(prev => prev.map(m =>
-      m.id === message.id ? message : m
-    ))
-  }
-
-  const handleConversationNew = (conversation: Conversation) => {
-    setConversations(prev => {
-      // Verificar se a conversa já existe (evitar duplicatas)
-      const exists = prev.some(c => c.id === conversation.id)
-      if (exists) return prev
-
-      // Adicionar nova conversa no topo da lista
-      return [conversation, ...prev]
-    })
-  }
-
-  const handleConversationUpdated = (conversation: Conversation) => {
-    setConversations(prev => prev.map(c =>
-      c.id === conversation.id ? conversation : c
-    ))
-  }
-
-  const showNotification = (message: Message) => {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      const conv = conversations.find(c => c.id === activeConversation)
-      const contactName = conv?.contact?.name || 'Novo contato'
-
-      new Notification(`Nova mensagem de ${contactName}`, {
-        body: message.content || 'Mídia recebida',
-        icon: '/logo.png',
-        tag: `message-${message.id}`
-      })
-    }
-
-    // Toast como fallback
-    toast.info('Nova mensagem recebida', {
-      description: message.content || 'Mídia recebida'
-    })
-  }
-
-  // Funções de seleção e gerenciamento
   const toggleSelectionMode = () => {
     setSelectionMode(prev => !prev)
     setSelectedConversations(new Set())
@@ -433,15 +514,30 @@ export default function ConversationsPage() {
     }
   }
 
-  // Calcular total de mensagens não lidas
-  const totalUnreadCount = filteredConversations.reduce((total, conv) => total + (conv.unread_count || 0), 0)
+  const markAllAsRead = async () => {
+    try {
+      const params = inboxId ? { inbox_id: inboxId } : {}
+      await api.post('/conversations/mark-all-read', null, { params })
+      
+      // Atualizar estado local
+      setConversations(prev => prev.map(c => ({ ...c, unread_count: 0 })))
+      setFilteredConversations(prev => prev.map(c => ({ ...c, unread_count: 0 })))
+      
+      toast.success('Todas as conversas marcadas como lidas')
+    } catch (error) {
+      console.error('Error marking all as read:', error)
+      toast.error('Erro ao marcar todas como lidas')
+    }
+  }
+
+  // Calcular total de mensagens não lidas diretamente do unread_count
+  const totalUnreadCount = filteredConversations.reduce((total, conv) => {
+    const count = conv.unread_count || 0
+    return total + count
+  }, 0)
 
   // Debug: log do contador quando mudar
   useEffect(() => {
-    if (totalUnreadCount > 0) {
-      console.log('[Badge Debug] Total unread count:', totalUnreadCount)
-      console.log('[Badge Debug] Filtered conversations:', filteredConversations.map(c => ({ id: c.id, unread: c.unread_count })))
-    }
   }, [totalUnreadCount, filteredConversations])
 
   // Solicitar permissão de notificação
@@ -462,7 +558,9 @@ export default function ConversationsPage() {
   const fetchInboxes = async () => {
     try {
       const response = await api.get('/inboxes')
-      setInboxes(response.data || [])
+      // Suporta formato Chatwoot { payload: [...] } e formato direto [...]
+      const inboxes = response.data.payload || response.data || []
+      setInboxes(inboxes)
     } catch (error) {
       console.error('Erro ao carregar inboxes:', error)
     }
@@ -530,8 +628,12 @@ export default function ConversationsPage() {
       }
 
       const response = await api.get('/conversations', { params })
-      setConversations(response.data || [])
-      setFilteredConversations(response.data || [])
+
+      // Ordenar conversas por last_activity_at
+      const sortedConversations = sortConversations(response.data || [])
+
+      setConversations(sortedConversations)
+      setFilteredConversations(sortedConversations)
 
       // Se há conversationIdParam na URL, abrir essa conversa
       if (conversationIdParam) {
@@ -551,16 +653,19 @@ export default function ConversationsPage() {
   const fetchMessages = async (conversationId: number) => {
     try {
       setLoadingMessages(true)
-      const response = await api.get(`/conversation/${conversationId}/messages`)
+      const response = await api.get(`/conversations/${conversationId}/messages`)
       setMessages(response.data.messages || [])
+      
+      // Finalizar loading antes de tentar o scroll para garantir que o DOM renderizou as mensagens
+      setLoadingMessages(false)
 
       // Scroll imediato para o final após carregar mensagens
-      setTimeout(() => scrollToBottom(true), 150)
+      setTimeout(() => scrollToBottom(true), 50)
 
-      // Marcar como lida
-      await api.post(`/conversation/${conversationId}/read`)
+      // Marcar como lida no backend (não precisa dar await aqui para não atrasar a UI)
+      api.post(`/conversations/${conversationId}/read`).catch(console.error)
 
-      // Atualizar contador local
+      // Zerar unread_count local após marcar como lida
       setConversations(prev =>
         prev.map(conv =>
           conv.id === conversationId
@@ -571,45 +676,33 @@ export default function ConversationsPage() {
     } catch (error) {
       console.error('Error fetching messages:', error)
       toast.error('Erro ao carregar mensagens')
-    } finally {
       setLoadingMessages(false)
     }
   }
 
   const sendMessage = async () => {
-    console.log('[sendMessage] Iniciando envio...', {
-      messageInput: messageInput,
-      activeConversation: activeConversation,
-      sending: sending,
-      messageInputTrimmed: messageInput.trim()
-    })
 
     if (!messageInput.trim()) {
-      console.log('[sendMessage] Mensagem vazia, abortando')
       return
     }
 
     if (!activeConversation) {
-      console.log('[sendMessage] Nenhuma conversa ativa, abortando')
       toast.error('Selecione uma conversa primeiro')
       return
     }
 
     if (sending) {
-      console.log('[sendMessage] Já está enviando, abortando')
       return
     }
 
     try {
       setSending(true)
-      console.log('[sendMessage] Enviando para:', `/conversation/${activeConversation}/messages`)
 
-      const response = await api.post(`/conversation/${activeConversation}/messages`, {
+      const response = await api.post(`/conversations/${activeConversation}/messages`, {
         content: messageInput,
         content_type: 'text'
       })
 
-      console.log('[sendMessage] Resposta recebida:', response.data)
       setMessages(prev => [...prev, response.data])
       setMessageInput('')
       scrollToBottom()
@@ -620,7 +713,6 @@ export default function ConversationsPage() {
       toast.error(axiosError.response?.data?.error || 'Erro ao enviar mensagem')
     } finally {
       setSending(false)
-      console.log('[sendMessage] Finalizando envio')
     }
   }
 
@@ -644,7 +736,7 @@ export default function ConversationsPage() {
       const { url: mediaUrl, file_name } = uploadResponse.data
 
       // Enviar mensagem com o arquivo
-      const response = await api.post(`/conversation/${activeConversation}/messages`, {
+      const response = await api.post(`/conversations/${activeConversation}/messages`, {
         content: file_name || file.name,
         content_type: contentType,
         media_url: mediaUrl
@@ -845,7 +937,7 @@ export default function ConversationsPage() {
   }, [isRecording])
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-slate-950">
+    <div className="flex h-full w-full overflow-hidden bg-background">
       {/* Hidden file inputs */}
       <input
         ref={fileInputRef}
@@ -864,25 +956,25 @@ export default function ConversationsPage() {
       {/* Sidebar de Conversas - Redimensionável */}
       <div
         ref={sidebarRef}
-        className="border-r border-slate-800 bg-slate-950 flex flex-col relative flex-shrink-0"
+        className="border-r border-border bg-background flex flex-col relative flex-shrink-0"
         style={{ width: `${sidebarWidth}px`, minWidth: '320px', maxWidth: '600px' }}
       >
-        <div className="p-4 border-b border-slate-800">
+        <div className="p-4 border-b border-border">
           <div className="flex items-center gap-2 mb-3">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-500" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar conversas..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-slate-900 border-slate-800 text-white placeholder:text-slate-500"
+                className="pl-10 bg-background border-border text-foreground placeholder:text-muted-foreground"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2"
                 >
-                  <X className="h-4 w-4 text-slate-500 hover:text-white" />
+                  <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
                 </button>
               )}
             </div>
@@ -890,7 +982,7 @@ export default function ConversationsPage() {
               variant="ghost"
               size="icon"
               onClick={() => setIsNewConversationOpen(true)}
-              className="text-green-500 hover:bg-green-600/10"
+              className="text-foreground0 hover:bg-primary/10"
               title="Nova Conversa"
             >
               <Plus className="h-5 w-5" />
@@ -899,7 +991,7 @@ export default function ConversationsPage() {
               variant="ghost"
               size="icon"
               onClick={() => setNotifications(!notifications)}
-              className={notifications ? 'text-green-500' : 'text-slate-500'}
+              className={notifications ? 'text-foreground0' : 'text-muted-foreground'}
               title={notifications ? 'Notificações ativadas' : 'Notificações desativadas'}
             >
               {notifications ? <Bell className="h-5 w-5" /> : <BellOff className="h-5 w-5" />}
@@ -908,12 +1000,12 @@ export default function ConversationsPage() {
           <div className="flex flex-col gap-2">
             {inboxId && (
               <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center text-slate-400">
+                <div className="flex items-center text-muted-foreground">
                   <Inbox className="h-4 w-4 mr-2" />
                   Inbox #{inboxId}
                 </div>
                 {totalUnreadCount > 0 && (
-                  <Badge className="bg-red-500 text-white text-xs px-2 py-0.5">
+                  <Badge className="bg-destructive text-white text-xs px-2 py-0.5">
                     {totalUnreadCount} não lida{totalUnreadCount !== 1 ? 's' : ''}
                   </Badge>
                 )}
@@ -926,10 +1018,21 @@ export default function ConversationsPage() {
                 variant="ghost"
                 size="sm"
                 onClick={toggleSelectionMode}
-                className={`flex-1 text-xs ${selectionMode ? 'bg-blue-600/20 text-blue-400' : 'text-slate-400 hover:text-white'}`}
+                className={`flex-1 text-xs ${selectionMode ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
               >
                 {selectionMode ? <CheckSquare className="h-3.5 w-3.5 mr-1" /> : <Square className="h-3.5 w-3.5 mr-1" />}
                 {selectionMode ? 'Cancelar' : 'Selecionar'}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={markAllAsRead}
+                className="flex-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                title="Marcar todas como lidas"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                Ler todas
               </Button>
 
               {selectionMode && (
@@ -938,7 +1041,7 @@ export default function ConversationsPage() {
                     variant="ghost"
                     size="sm"
                     onClick={selectAllConversations}
-                    className="text-xs text-blue-400 hover:text-blue-300"
+                    className="text-xs text-primary hover:text-primary/80"
                     title="Selecionar todas"
                   >
                     Todas
@@ -961,13 +1064,13 @@ export default function ConversationsPage() {
             </div>
 
             {/* Filtro de tipo de conversa */}
-            <div className="flex gap-1 p-1 bg-slate-900 rounded-lg">
+            <div className="flex gap-1 p-1 bg-accent rounded-lg">
               <button
                 onClick={() => setConversationType('all')}
                 className={`flex-1 px-3 py-1.5 text-xs font-medium rounded transition-colors ${
                   conversationType === 'all'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
                 }`}
               >
                 Todas
@@ -976,8 +1079,8 @@ export default function ConversationsPage() {
                 onClick={() => setConversationType('private')}
                 className={`flex-1 px-3 py-1.5 text-xs font-medium rounded transition-colors ${
                   conversationType === 'private'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
                 }`}
               >
                 Privadas
@@ -986,8 +1089,8 @@ export default function ConversationsPage() {
                 onClick={() => setConversationType('group')}
                 className={`flex-1 px-3 py-1.5 text-xs font-medium rounded transition-colors ${
                   conversationType === 'group'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
                 }`}
               >
                 Grupos
@@ -998,14 +1101,14 @@ export default function ConversationsPage() {
 
         <div className="flex-1 overflow-y-auto">
           {loading ? (
-            <div className="p-4 text-center text-slate-500">Carregando conversas...</div>
+            <div className="p-4 text-center text-muted-foreground">Carregando conversas...</div>
           ) : filteredConversations.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-              <MessageSquare className="h-12 w-12 text-slate-700 mb-4" />
-              <p className="text-slate-500 font-medium">
+              <MessageSquare className="h-12 w-12 text-foreground mb-4" />
+              <p className="text-muted-foreground font-medium">
                 {searchQuery ? 'Nenhuma conversa encontrada' : 'Nenhuma conversa'}
               </p>
-              <p className="text-slate-600 text-sm mt-2">
+              <p className="text-muted-foreground text-sm mt-2">
                 {searchQuery
                   ? 'Tente buscar por outro termo'
                   : inboxId
@@ -1015,8 +1118,10 @@ export default function ConversationsPage() {
             </div>
           ) : (
             <div className="flex flex-col gap-1 p-2">
-              {filteredConversations.map((conversation, index) => {
-                const isNew = index === 0 && conversation.unread_count > 0
+              {filteredConversations.map((conversation) => {
+                // Badge "NOVA" baseado diretamente em unread_count
+                const unreadCount = conversation.unread_count || 0
+                const isNew = unreadCount > 0
                 const isSelected = selectedConversations.has(conversation.id)
 
                 return (
@@ -1024,10 +1129,10 @@ export default function ConversationsPage() {
                     key={conversation.id}
                     className={`flex items-start gap-2 p-3 mx-2 rounded-xl transition-all group relative ${
                       activeConversation === conversation.id
-                        ? 'bg-blue-600/10 border border-blue-600/20'
+                        ? 'bg-primary/10 border border-primary/20'
                         : isSelected
-                          ? 'bg-green-600/10 border border-green-600/20'
-                          : 'hover:bg-slate-900 border border-transparent'
+                          ? 'bg-primary/5 border border-primary/20'
+                          : 'hover:bg-accent border border-transparent'
                     }`}
                   >
                     {/* Checkbox para seleção */}
@@ -1037,9 +1142,9 @@ export default function ConversationsPage() {
                         className="shrink-0 mt-1"
                       >
                         {isSelected ? (
-                          <CheckSquare className="h-5 w-5 text-green-400" />
+                          <CheckSquare className="h-5 w-5 text-primary" />
                         ) : (
-                          <Square className="h-5 w-5 text-slate-600 hover:text-slate-400" />
+                          <Square className="h-5 w-5 text-muted-foreground hover:text-muted-foreground" />
                         )}
                       </button>
                     )}
@@ -1050,15 +1155,15 @@ export default function ConversationsPage() {
                       className="flex items-start gap-3 flex-1 min-w-0 text-left"
                     >
                       <div className="relative">
-                        <Avatar className="h-10 w-10 border-2 border-slate-800 shrink-0">
-                          {(conversation.contact?.avatar_url || conversation.contact?.thumbnail) && (
-                            <AvatarImage 
-                              src={conversation.contact?.avatar_url || conversation.contact?.thumbnail} 
+                        <Avatar className="h-10 w-10 border-2 border-border shrink-0">
+                          {conversation.contact?.avatar_url && (
+                            <AvatarImage
+                              src={conversation.contact.avatar_url}
                               alt={conversation.contact?.name || 'Contact'}
                               className="object-cover"
                             />
                           )}
-                          <AvatarFallback className={`${activeConversation === conversation.id ? 'bg-blue-600' : 'bg-slate-800'} text-white font-medium`}>
+                          <AvatarFallback className={`${activeConversation === conversation.id ? 'bg-primary' : 'bg-muted'} text-foreground  font-medium`}>
                             {conversation.contact?.name?.charAt(0)?.toUpperCase() || 'U'}
                           </AvatarFallback>
                         </Avatar>
@@ -1072,7 +1177,7 @@ export default function ConversationsPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2 mb-0.5">
                           <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                            <span className={`font-medium truncate text-sm ${activeConversation === conversation.id ? 'text-blue-400' : 'text-slate-200 group-hover:text-white'}`}>
+                            <span className={`font-medium truncate text-sm ${activeConversation === conversation.id ? 'text-primary dark:text-primary' : 'text-foreground group-hover:text-foreground'}`}>
                               {conversation.contact?.name || `Contato #${conversation.contact_id}`}
                             </span>
                             {isNew && (
@@ -1082,18 +1187,18 @@ export default function ConversationsPage() {
                             )}
                           </div>
                           {conversation.last_activity_at && formatMessageTime(conversation.last_activity_at) && (
-                            <span className="text-[10px] text-slate-500 shrink-0">
+                            <span className="text-[10px] text-muted-foreground shrink-0">
                               {formatMessageTime(conversation.last_activity_at)}
                             </span>
                           )}
                         </div>
                         <div className="flex items-center justify-between">
-                          <p className="text-xs text-slate-500 truncate max-w-[140px]">
+                          <p className="text-xs text-muted-foreground truncate max-w-[140px]">
                             {conversation.contact?.identifier?.replace('@s.whatsapp.net', '')?.replace('@g.us', '') || 'Sem info'}
                           </p>
-                          {conversation.unread_count > 0 && (
-                            <Badge className="h-5 min-w-[20px] px-1.5 flex items-center justify-center bg-green-500 text-white text-[10px] font-bold border-0 shadow-lg shadow-green-500/20">
-                              {conversation.unread_count}
+                          {unreadCount > 0 && (
+                            <Badge className="h-5 min-w-[20px] px-1.5 flex items-center justify-center bg-primary text-white text-[10px] font-bold border-0 shadow-lg shadow-green-500/20">
+                              {unreadCount}
                             </Badge>
                           )}
                         </div>
@@ -1108,32 +1213,42 @@ export default function ConversationsPage() {
 
         {/* Resize Handle */}
         <div
-          className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-green-500 transition-colors group"
+          className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary transition-colors group"
           onMouseDown={() => setIsResizing(true)}
         >
           <div className="absolute top-1/2 -translate-y-1/2 right-0 w-4 h-12 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-            <Grip className="h-4 w-4 text-slate-500" />
+            <Grip className="h-4 w-4 text-muted-foreground" />
           </div>
         </div>
       </div>
 
       {/* Área de Chat */}
-      <div className="flex-1 flex flex-col bg-slate-950 min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col bg-background min-w-0 overflow-hidden">
         {activeConversation ? (
           <>
             {/* Header */}
-            <div className="h-16 border-b border-slate-800 flex items-center justify-between px-6 bg-slate-900">
+            <div className="h-16 border-b border-border flex items-center justify-between px-6 bg-background">
               <div className="flex items-center gap-3">
-                <Avatar className="border-2 border-slate-700">
-                  <AvatarFallback className="bg-slate-700 text-white">
+                <Avatar className="border-2 border-border">
+                  {(() => {
+                    const contact = conversations.find(c => c.id === activeConversation)?.contact
+                    return contact?.avatar_url && (
+                      <AvatarImage
+                        src={contact.avatar_url}
+                        alt={contact?.name || 'Contact'}
+                        className="object-cover"
+                      />
+                    )
+                  })()}
+                  <AvatarFallback className="bg-muted text-foreground">
                     {conversations.find(c => c.id === activeConversation)?.contact?.name?.charAt(0)?.toUpperCase() || 'U'}
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <h3 className="font-semibold text-white">
+                  <h3 className="font-semibold text-foreground">
                     {conversations.find(c => c.id === activeConversation)?.contact?.name || `Conversa #${activeConversation}`}
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-muted-foreground">
                     {conversations.find(c => c.id === activeConversation)?.contact?.phone_number || 'Sem telefone'}
                   </p>
                 </div>
@@ -1141,17 +1256,17 @@ export default function ConversationsPage() {
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-6 bg-slate-950">
+            <div className="flex-1 overflow-y-auto p-6 bg-background">
               {loadingMessages ? (
                 <div className="flex items-center justify-center h-full">
-                  <div className="text-slate-500">Carregando mensagens...</div>
+                  <div className="text-muted-foreground">Carregando mensagens...</div>
                 </div>
               ) : messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
-                    <MessageSquare className="h-12 w-12 text-slate-700 mx-auto mb-3" />
-                    <p className="text-slate-500">Início da conversa</p>
-                    <p className="text-slate-600 text-sm mt-1">Envie sua primeira mensagem</p>
+                    <MessageSquare className="h-12 w-12 text-foreground mx-auto mb-3" />
+                    <p className="text-muted-foreground">Início da conversa</p>
+                    <p className="text-muted-foreground text-sm mt-1">Envie sua primeira mensagem</p>
                   </div>
                 </div>
               ) : (
@@ -1166,8 +1281,8 @@ export default function ConversationsPage() {
                         className={`flex gap-2 group ${isFromMe ? 'justify-end' : 'justify-start'}`}
                       >
                         {!isFromMe && showAvatar && (
-                          <Avatar className="h-8 w-8 border-2 border-slate-800">
-                            <AvatarFallback className="bg-slate-700 text-white text-xs">
+                          <Avatar className="h-8 w-8 border-2 border-border">
+                            <AvatarFallback className="bg-muted text-foreground text-xs">
                               {conversations.find(c => c.id === activeConversation)?.contact?.name?.charAt(0)?.toUpperCase() || 'U'}
                             </AvatarFallback>
                           </Avatar>
@@ -1178,36 +1293,36 @@ export default function ConversationsPage() {
                           {/* Menu de contexto */}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <button className={`absolute ${isFromMe ? 'left-0' : 'right-0'} top-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-700 rounded`}>
-                                <MoreVertical className="h-4 w-4 text-slate-400" />
+                              <button className={`absolute ${isFromMe ? 'left-0' : 'right-0'} top-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-secondary rounded`}>
+                                <MoreVertical className="h-4 w-4 text-muted-foreground" />
                               </button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align={isFromMe ? 'start' : 'end'} className="bg-slate-800 border-slate-700">
-                              <DropdownMenuItem onClick={() => copyMessageText(message.content)} className="text-white hover:bg-slate-700">
+                            <DropdownMenuContent align={isFromMe ? 'start' : 'end'} className="bg-popover border-border">
+                              <DropdownMenuItem onClick={() => copyMessageText(message.content)} className="text-popover-foreground hover:bg-accent">
                                 <Copy className="h-4 w-4 mr-2" />
                                 Copiar texto
                               </DropdownMenuItem>
                               {message.media_url && (
-                                <DropdownMenuItem onClick={() => window.open(message.media_url, '_blank')} className="text-white hover:bg-slate-700">
+                                <DropdownMenuItem onClick={() => window.open(message.media_url, '_blank')} className="text-popover-foreground hover:bg-accent">
                                   <Download className="h-4 w-4 mr-2" />
                                   Download
                                 </DropdownMenuItem>
                               )}
-                              <DropdownMenuSeparator className="bg-slate-700" />
+                              <DropdownMenuSeparator className="bg-border" />
                               {isFromMe && (
                                 <>
-                                  <DropdownMenuItem className="text-white hover:bg-slate-700">
+                                  <DropdownMenuItem className="text-popover-foreground hover:bg-accent">
                                     <Edit2 className="h-4 w-4 mr-2" />
                                     Editar
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => deleteMessage(message.id)} className="text-red-400 hover:bg-slate-700">
+                                  <DropdownMenuItem onClick={() => deleteMessage(message.id)} className="text-destructive hover:bg-accent">
                                     <Trash2 className="h-4 w-4 mr-2" />
                                     Deletar
                                   </DropdownMenuItem>
                                 </>
                               )}
                               {!isFromMe && (
-                                <DropdownMenuItem className="text-white hover:bg-slate-700">
+                                <DropdownMenuItem className="text-popover-foreground hover:bg-accent">
                                   <Reply className="h-4 w-4 mr-2" />
                                   Responder
                                 </DropdownMenuItem>
@@ -1222,8 +1337,13 @@ export default function ConversationsPage() {
                                 <img
                                   src={message.media_url}
                                   alt={message.file_name || 'Image'}
+                                  referrerPolicy="no-referrer"
                                   className="rounded-lg max-w-full max-h-96 object-cover cursor-pointer hover:opacity-90"
                                   onClick={() => window.open(message.media_url, '_blank')}
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none'
+                                    e.currentTarget.parentElement?.insertAdjacentHTML('beforeend', '<div class="p-4 bg-muted text-muted-foreground text-sm rounded-lg flex items-center justify-center">Imagem indisponível</div>')
+                                  }}
                                 />
                               )}
                               {message.content_type === 'video' && (
@@ -1234,17 +1354,17 @@ export default function ConversationsPage() {
                                 />
                               )}
                               {message.content_type === 'audio' && (
-                                <div className="flex items-center gap-2 p-3 bg-slate-800 rounded-lg">
-                                  <Volume2 className="h-5 w-5 text-slate-400" />
+                                <div className="flex items-center gap-2 p-3 bg-secondary rounded-lg">
+                                  <Volume2 className="h-5 w-5 text-muted-foreground" />
                                   <audio src={message.media_url} controls className="max-w-full" />
                                 </div>
                               )}
                               {message.content_type === 'document' && (
-                                <div className="flex items-center gap-3 p-3 bg-slate-800 rounded-lg min-w-[200px]">
-                                  <FileText className="h-10 w-10 text-slate-400 flex-shrink-0" />
+                                <div className="flex items-center gap-3 p-3 bg-secondary rounded-lg min-w-[200px]">
+                                  <FileText className="h-10 w-10 text-muted-foreground flex-shrink-0" />
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-sm text-white truncate font-medium">{message.file_name || 'Document'}</p>
-                                    <p className="text-xs text-slate-400">
+                                    <p className="text-sm text-foreground truncate font-medium">{message.file_name || 'Document'}</p>
+                                    <p className="text-xs text-muted-foreground">
                                       {formatFileSize(message.file_size)}
                                     </p>
                                   </div>
@@ -1252,10 +1372,10 @@ export default function ConversationsPage() {
                                     href={message.media_url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="flex-shrink-0 p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                                    className="flex-shrink-0 p-2 bg-primary hover:bg-primary rounded-lg transition-colors"
                                     title="Download"
                                   >
-                                    <Download className="h-4 w-4 text-white" />
+                                    <Download className="h-4 w-4 text-foreground" />
                                   </a>
                                 </div>
                               )}
@@ -1266,14 +1386,15 @@ export default function ConversationsPage() {
                             <div
                               className={`rounded-lg px-4 py-2 ${
                                 isFromMe
-                                  ? 'bg-green-600 text-white'
-                                  : 'bg-slate-800 text-white'
+                                  ? 'bg-primary text-foreground'
+                                  : 'bg-muted text-foreground'
                               } max-w-full break-words shadow-sm`}
                             >
                               <div className="flex flex-col">
                                 {!isFromMe && activeConversation && conversations.find(c => c.id === activeConversation)?.contact?.identifier?.endsWith('@g.us') && (
-                                  <span className="text-[10px] text-blue-300 font-bold mb-1 opacity-90 block">
+                                  <span className="text-[10px] text-primary font-bold mb-1 opacity-90 block">
                                     {(() => {
+                                      if (!message.content) return null
                                       const match = message.content.match(/^\*\*([^-]+) - ([^:]+):\*\*\s*/)
                                       if (match) {
                                         return match[2].trim()
@@ -1286,6 +1407,7 @@ export default function ConversationsPage() {
                                 <p className="text-sm leading-relaxed whitespace-pre-wrap">
                                   {(() => {
                                     // Remover o prefixo do remetente se existir e for grupo
+                                    if (!message.content) return ''
                                     if (!isFromMe && activeConversation && conversations.find(c => c.id === activeConversation)?.contact?.identifier?.endsWith('@g.us')) {
                                       return message.content.replace(/^\*\*([^-]+) - ([^:]+):\*\*\s*/, '').trim()
                                     }
@@ -1297,7 +1419,7 @@ export default function ConversationsPage() {
                           )}
 
                           <div className={`flex items-center gap-1 mt-1 px-1 ${
-                            isFromMe ? 'justify-end text-slate-300' : 'justify-start text-slate-500'
+                            isFromMe ? 'justify-end text-muted-foreground' : 'justify-start text-muted-foreground'
                           }`}>
                             <span className="text-[10px] opacity-70">
                               {formatMessageTime(message.created_at)}
@@ -1314,26 +1436,26 @@ export default function ConversationsPage() {
             </div>
 
             {/* Input Area */}
-            <div className="p-4 border-t border-slate-800 bg-slate-900">
+            <div className="p-4 border-t border-border bg-background">
               {isRecording ? (
                 // UI de gravação ativa
-                <div className="flex items-center gap-3 bg-red-600/10 border border-red-600/20 rounded-lg p-4">
+                <div className="flex items-center gap-3 bg-destructive/10 border border-red-600/20 rounded-lg p-4">
                   <div className="flex items-center gap-2 flex-1">
                     <div className="relative">
                       <Mic className="h-5 w-5 text-red-500 animate-pulse" />
-                      <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-ping" />
+                      <div className="absolute -top-1 -right-1 w-2 h-2 bg-destructive rounded-full animate-ping" />
                     </div>
                     <span className="text-red-400 font-mono font-semibold">
                       {formatRecordingTime(recordingTime)}
                     </span>
-                    <span className="text-slate-400 text-sm">Gravando áudio...</span>
+                    <span className="text-muted-foreground text-sm">Gravando áudio...</span>
                   </div>
                   <div className="flex gap-2">
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={cancelRecording}
-                      className="text-slate-400 hover:text-white hover:bg-slate-800"
+                      className="text-muted-foreground hover:text-foreground hover:bg-accent"
                       title="Cancelar"
                     >
                       <X className="h-5 w-5" />
@@ -1341,7 +1463,7 @@ export default function ConversationsPage() {
                     <Button
                       size="icon"
                       onClick={stopRecording}
-                      className="bg-red-600 hover:bg-red-700 text-white"
+                      className="bg-destructive hover:bg-destructive text-foreground"
                       title="Enviar áudio"
                     >
                       <Send className="h-5 w-5" />
@@ -1355,7 +1477,7 @@ export default function ConversationsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="text-slate-400 hover:text-white"
+                      className="text-muted-foreground hover:text-foreground"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={uploading}
                       title="Enviar arquivo"
@@ -1365,7 +1487,7 @@ export default function ConversationsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="text-slate-400 hover:text-white"
+                      className="text-muted-foreground hover:text-foreground"
                       onClick={() => imageInputRef.current?.click()}
                       disabled={uploading}
                       title="Enviar imagem"
@@ -1375,7 +1497,7 @@ export default function ConversationsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="text-slate-400 hover:text-red-400 hover:bg-red-600/10"
+                      className="text-muted-foreground hover:text-red-400 hover:bg-destructive/10"
                       onClick={startRecording}
                       disabled={uploading}
                       title="Gravar áudio"
@@ -1388,12 +1510,12 @@ export default function ConversationsPage() {
                     onChange={(e) => setMessageInput(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder="Digite sua mensagem..."
-                    className="flex-1 bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
+                    className="flex-1 bg-accent border-border text-foreground placeholder:text-muted-foreground dark:placeholder:text-muted-foreground"
                     disabled={sending || uploading}
                   />
                   <Button
                     size="icon"
-                    className="bg-green-600 hover:bg-green-700"
+                    className="bg-primary hover:bg-primary/90"
                     onClick={sendMessage}
                     disabled={!messageInput.trim() || sending || uploading}
                   >
@@ -1410,9 +1532,9 @@ export default function ConversationsPage() {
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
-              <MessageSquare className="h-16 w-16 text-slate-700 mx-auto mb-4" />
-              <p className="text-slate-500 font-medium">Selecione uma conversa</p>
-              <p className="text-slate-600 text-sm mt-2">Escolha uma conversa da lista para começar</p>
+              <MessageSquare className="h-16 w-16 text-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground font-medium">Selecione uma conversa</p>
+              <p className="text-muted-foreground text-sm mt-2">Escolha uma conversa da lista para começar</p>
             </div>
           </div>
         )}
@@ -1420,10 +1542,10 @@ export default function ConversationsPage() {
 
       {/* Dialog Nova Conversa */}
       <Dialog open={isNewConversationOpen} onOpenChange={setIsNewConversationOpen}>
-        <DialogContent className="bg-slate-900 border-slate-800 text-green-50 max-w-md">
+        <DialogContent className="bg-card border-border text-foreground max-w-md">
           <DialogHeader>
             <DialogTitle>Nova Conversa</DialogTitle>
-            <DialogDescription className="text-green-200/60">
+            <DialogDescription className="text-muted-foreground">
               Selecione um contato para iniciar uma nova conversa
             </DialogDescription>
           </DialogHeader>
@@ -1431,19 +1553,19 @@ export default function ConversationsPage() {
           <div className="space-y-4">
             {/* Busca de contatos */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-500" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar contato..."
                 value={contactSearch}
                 onChange={(e) => setContactSearch(e.target.value)}
-                className="pl-10 bg-slate-800 border-slate-700 text-green-50"
+                className="pl-10 bg-secondary border-border text-foreground"
               />
             </div>
 
             {/* Lista de contatos */}
             <div className="max-h-96 overflow-y-auto space-y-2">
               {loadingContacts ? (
-                <div className="text-center py-8 text-slate-500">
+                <div className="text-center py-8 text-muted-foreground">
                   Carregando contatos...
                 </div>
               ) : contacts.filter(c =>
@@ -1451,7 +1573,7 @@ export default function ConversationsPage() {
                   c.phone_number.includes(contactSearch) ||
                   c.email.toLowerCase().includes(contactSearch.toLowerCase())
                 ).length === 0 ? (
-                <div className="text-center py-8 text-slate-500">
+                <div className="text-center py-8 text-muted-foreground">
                   Nenhum contato encontrado
                 </div>
               ) : (
@@ -1466,16 +1588,16 @@ export default function ConversationsPage() {
                       key={contact.id}
                       onClick={() => handleCreateConversation(contact)}
                       disabled={creatingConversation}
-                      className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-slate-800 transition-colors text-left disabled:opacity-50"
+                      className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary transition-colors text-left disabled:opacity-50"
                     >
                       <Avatar className="h-10 w-10">
-                        <AvatarFallback className="bg-green-600 text-white">
+                        <AvatarFallback className="bg-primary text-foreground">
                           {contact.name.charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-green-50 truncate">{contact.name}</p>
-                        <p className="text-sm text-slate-400 truncate">{contact.phone_number}</p>
+                        <p className="font-medium text-foreground truncate">{contact.name}</p>
+                        <p className="text-sm text-muted-foreground truncate">{contact.phone_number}</p>
                       </div>
                       {creatingConversation && (
                         <div className="h-4 w-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />

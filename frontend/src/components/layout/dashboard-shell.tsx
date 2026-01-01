@@ -6,7 +6,7 @@ import { SidebarContext } from './sidebar-context';
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
 return (
-<div className="flex h-screen w-full overflow-hidden bg-white">
+<div className="flex h-screen w-full overflow-hidden bg-card">
 {/* 1. Sidebar Global (Fina) */}
 <SidebarMain />
 

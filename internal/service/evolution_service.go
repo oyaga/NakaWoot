@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"mensager-go/internal/db"
 	"mensager-go/internal/models"
 	"mensager-go/internal/repository"
 	"os"
@@ -21,6 +22,35 @@ var (
 
 // InitMediaStorage inicializa o storage de mídia
 func InitMediaStorage() {
+	// Verificar se deve usar MinIO (mesma configuração do Evolution-Go)
+	useMinio := os.Getenv("USE_MINIO")
+	minioEndpoint := os.Getenv("MINIO_ENDPOINT")
+	minioAccessKey := os.Getenv("MINIO_ACCESS_KEY")
+	minioSecretKey := os.Getenv("MINIO_SECRET_KEY")
+	minioBucket := os.Getenv("MINIO_BUCKET")
+	minioUseSSL := os.Getenv("MINIO_USE_SSL") == "true"
+
+	if useMinio == "true" && minioEndpoint != "" && minioAccessKey != "" && minioSecretKey != "" {
+		if minioBucket == "" {
+			minioBucket = "mensager-media"
+		}
+
+		// Usar MEDIA_BASE_URL para URL pública de acesso
+		publicURL := os.Getenv("MEDIA_BASE_URL")
+		if publicURL == "" {
+			publicURL = "http://localhost:4120/media"
+		}
+
+		storage, err := NewMinioMediaStorage(minioEndpoint, minioAccessKey, minioSecretKey, minioBucket, minioUseSSL, publicURL)
+		if err != nil {
+			log.Printf("[MediaStorage] ERROR initializing MinIO: %v - falling back to local storage", err)
+		} else {
+			GlobalMediaStorage = storage
+			log.Printf("[MediaStorage] Initialized with MinIO (endpoint=%s, bucket=%s)", minioEndpoint, minioBucket)
+			return
+		}
+	}
+
 	// Verificar se deve usar Supabase Storage
 	useSupabase := os.Getenv("USE_SUPABASE_STORAGE")
 	supabaseURL := os.Getenv("SUPABASE_URL")
@@ -42,7 +72,7 @@ func InitMediaStorage() {
 
 		baseURL := os.Getenv("MEDIA_BASE_URL")
 		if baseURL == "" {
-			baseURL = "http://localhost:8080/media"
+			baseURL = "http://localhost:4120/media"
 		}
 
 		GlobalMediaStorage = NewLocalMediaStorage(basePath, baseURL)
@@ -368,10 +398,23 @@ func processMessage(inboxID uint, webhook *EvolutionWebhookPayload) error {
 	// Atualizar última atividade da conversa
 	now := time.Now()
 	conversation.LastActivityAt = &now
+
+	// Preparar campos a atualizar
+	updates := map[string]interface{}{
+		"last_activity_at": conversation.LastActivityAt,
+		"updated_at":       now,
+	}
+
+	// Se for mensagem incoming, incrementar unread_count
 	if messageType == models.MessageTypeIncoming {
 		conversation.UnreadCount++
+		updates["unread_count"] = conversation.UnreadCount
 	}
-	repository.UpdateConversation(conversation)
+
+	// Atualizar explicitamente no banco usando Updates para garantir persistência
+	if err := db.Instance.Model(&conversation).Updates(updates).Error; err != nil {
+		log.Printf("[ProcessMessage] Error updating conversation: %v", err)
+	}
 
 	// Notificar atualização da conversa para atualizar lista em tempo real
 	NotifyConversationUpdated(conversation)

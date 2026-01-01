@@ -57,9 +57,9 @@ export default function ConversationChart() {
     if (active && payload && payload.length) {
       const dataPoint = payload[0].payload as ConversationDataPoint
       return (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl">
+        <div className="bg-secondary border border-border rounded-lg p-3 shadow-xl">
           <p className="text-green-200/80 text-xs font-medium mb-1">{dataPoint.date}</p>
-          <p className="text-green-50 text-sm font-bold">
+          <p className="text-foreground text-sm font-bold">
             {payload[0].value} {payload[0].value === 1 ? 'conversa' : 'conversas'}
           </p>
         </div>
@@ -72,14 +72,14 @@ export default function ConversationChart() {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <Skeleton className="h-8 w-32 bg-slate-800" />
+          <Skeleton className="h-8 w-32 bg-secondary" />
           <div className="flex gap-2">
-            <Skeleton className="h-9 w-16 bg-slate-800" />
-            <Skeleton className="h-9 w-16 bg-slate-800" />
-            <Skeleton className="h-9 w-16 bg-slate-800" />
+            <Skeleton className="h-9 w-16 bg-secondary" />
+            <Skeleton className="h-9 w-16 bg-secondary" />
+            <Skeleton className="h-9 w-16 bg-secondary" />
           </div>
         </div>
-        <Skeleton className="h-[300px] w-full bg-slate-800/50 rounded-lg" />
+        <Skeleton className="h-[300px] w-full bg-secondary/50 rounded-lg" />
       </div>
     )
   }
@@ -93,20 +93,20 @@ export default function ConversationChart() {
       {/* Header com período e estatísticas */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-green-600/10 flex items-center justify-center">
-            <Calendar className="h-5 w-5 text-green-400" />
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Calendar className="h-5 w-5 text-primary" />
           </div>
           <div>
             <p className="text-sm text-green-200/60">Total no período</p>
-            <p className="text-2xl font-bold text-green-50">{totalConversations}</p>
+            <p className="text-2xl font-bold text-foreground">{totalConversations}</p>
           </div>
           <div className="ml-4">
             <p className="text-sm text-green-200/60">Média diária</p>
-            <p className="text-2xl font-bold text-green-50">{avgConversations}</p>
+            <p className="text-2xl font-bold text-foreground">{avgConversations}</p>
           </div>
           <div className="ml-4">
             <p className="text-sm text-green-200/60">Máximo</p>
-            <p className="text-2xl font-bold text-green-50">{maxConversations}</p>
+            <p className="text-2xl font-bold text-foreground">{maxConversations}</p>
           </div>
         </div>
 
@@ -120,8 +120,8 @@ export default function ConversationChart() {
               size="sm"
               className={
                 period === p
-                  ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
-                  : 'border-slate-700 text-green-200/80 hover:bg-slate-800 hover:text-green-50'
+                  ? 'bg-primary hover:bg-primary/90 text-white border-green-600'
+                  : 'border-border text-green-200/80 hover:bg-secondary hover:text-foreground'
               }
             >
               {p}d
@@ -176,10 +176,10 @@ export default function ConversationChart() {
       </div>
 
       {/* Legenda e info */}
-      <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+      <div className="flex items-center justify-between pt-2 border-t border-border">
         <div className="flex items-center gap-2 text-xs text-green-200/60">
           <div className="flex items-center gap-1.5">
-            <div className="h-2.5 w-2.5 rounded-full bg-green-500"></div>
+            <div className="h-2.5 w-2.5 rounded-full bg-primary"></div>
             <span>Conversas criadas</span>
           </div>
         </div>

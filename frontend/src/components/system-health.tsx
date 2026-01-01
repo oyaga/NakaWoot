@@ -27,17 +27,17 @@ if (!health) return null
 const isOperational = health.status === 'operational' && health.database === 'online'
 
 return (
-<div className="px-4 py-2 mt-auto border-t border-slate-800">
-<div className="flex items-center justify-between text-[10px] uppercase font-bold tracking-widest text-slate-500 mb-2">
+<div className="px-4 py-2 mt-auto border-t border-border">
+<div className="flex items-center justify-between text-[10px] uppercase font-bold tracking-widest text-muted-foreground mb-2">
 <span>Sistema NK</span>
-<Activity className={cn("h-3 w-3", isOperational ? "text-green-500" : "text-red-500 animate-pulse")} />
+<Activity className={cn("h-3 w-3", isOperational ? "text-foreground0" : "text-red-500 animate-pulse")} />
 </div>
 <div className="space-y-1">
-<div className="flex items-center gap-2 text-[10px] text-slate-400">
+<div className="flex items-center gap-2 text-[10px] text-muted-foreground">
 <Server className="h-3 w-3" />
 <span>API: {health.status === 'operational' ? 'OK' : 'FAIL'}</span>
 </div>
-<div className="flex items-center gap-2 text-[10px] text-slate-400">
+<div className="flex items-center gap-2 text-[10px] text-muted-foreground">
 <Database className="h-3 w-3" />
 <span>DB: {health.database === 'online' ? 'CONNECTED' : 'DISCONNECTED'}</span>
 </div>

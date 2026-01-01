@@ -27,9 +27,9 @@ export function SidebarMain() {
 const logout = useAuthStore((state) => state.logout);
 
 return (
-<aside className="w-16 flex flex-col items-center py-4 bg-slate-900 text-white border-r border-border">
+<aside className="w-16 flex flex-col items-center py-4 bg-card border-r border-border">
 <div className="mb-8">
-<div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-xl">
+<div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center font-bold text-xl text-primary-foreground">
 N
 </div>
 </div>
@@ -40,7 +40,9 @@ N
 <Tooltip key={item.label}>
 <TooltipTrigger asChild>
 <button className={cn(
-"p-3 rounded-xl transition-colors hover:bg-slate-800 text-slate-400 hover:text-white"
+"p-3 rounded-xl transition-all duration-200",
+"text-muted-foreground hover:text-foreground",
+"hover:bg-accent active:bg-accent/80"
 )}>
 <item.icon size={24} />
 </button>
@@ -57,7 +59,7 @@ N
 <TooltipTrigger asChild>
 <button
 onClick={() => logout()}
-className="p-3 rounded-xl transition-colors hover:bg-red-900/20 text-slate-400 hover:text-red-500"
+className="p-3 rounded-xl transition-all duration-200 text-muted-foreground hover:text-destructive hover:bg-destructive/10 active:bg-destructive/20"
 >
 <LogOut size={24} />
 </button>
@@ -65,8 +67,8 @@ className="p-3 rounded-xl transition-colors hover:bg-red-900/20 text-slate-400 h
 <TooltipContent side="right">Sair</TooltipContent>
 </Tooltip>
 
-<div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center">
-<UserCircle size={28} className="text-slate-300" />
+<div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+<UserCircle size={28} className="text-muted-foreground" />
 </div>
 </div>
 </TooltipProvider>

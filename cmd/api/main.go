@@ -26,6 +26,21 @@ func main() {
 
 	r := gin.Default()
 
+	// Configurar trusted proxies de forma segura
+	// Em produção com Docker Swarm/Traefik, confiar apenas em redes Docker
+	// Em desenvolvimento local, confiar apenas em localhost
+	if os.Getenv("DOCKER_ENV") != "" {
+		// Produção: confiar apenas em proxies da rede Docker
+		r.SetTrustedProxies([]string{
+			"172.16.0.0/12",  // Rede Docker padrão
+			"10.0.0.0/8",     // Redes Docker customizadas
+			"127.0.0.1",      // Localhost
+		})
+	} else {
+		// Desenvolvimento: confiar apenas em localhost
+		r.SetTrustedProxies([]string{"127.0.0.1", "::1"})
+	}
+
 	// CORS Middleware manual para evitar dependencia externa nova
 	r.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
@@ -59,7 +74,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "4120"
 	}
 
 	log.Printf("🚀 Mensager NK API started on port %s", port)
