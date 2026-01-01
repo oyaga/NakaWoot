@@ -1,0 +1,184 @@
+﻿docker : #0 building with "desktop-linux" instance using docker driver
+No linha:1 caractere:1
++ docker build --progress=plain -t oyaga/nakawoot:latest . 2>&1 | Out-F ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (#0 building wit...g docker driver:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 30B 0.0s
+#1 transferring dockerfile: 995B 0.1s done
+#1 DONE 0.2s
+
+#2 [internal] load metadata for docker.io/library/node:20-alpine
+#2 ...
+
+#3 [auth] library/alpine:pull token for registry-1.docker.io
+#3 DONE 0.0s
+
+#4 [auth] library/node:pull token for registry-1.docker.io
+#4 DONE 0.0s
+
+#5 [auth] library/golang:pull token for registry-1.docker.io
+#5 DONE 0.0s
+
+#6 [internal] load metadata for docker.io/library/alpine:3.20
+#6 ...
+
+#2 [internal] load metadata for docker.io/library/node:20-alpine
+#2 DONE 2.3s
+
+#6 [internal] load metadata for docker.io/library/alpine:3.20
+#6 DONE 2.3s
+
+#7 [internal] load metadata for docker.io/library/golang:1.23-alpine
+#7 DONE 2.4s
+
+#8 [internal] load .dockerignore
+#8 transferring context: 33B 0.0s
+#8 transferring context: 233B 0.2s done
+#8 DONE 0.3s
+
+#9 [internal] load build context
+#9 DONE 0.0s
+
+#10 [stage-2 1/5] FROM 
+docker.io/library/alpine:3.20@sha256:765942a4039992336de8dd5db680586e1a206607dd06170ff0a37267a9e01958
+#10 resolve 
+docker.io/library/alpine:3.20@sha256:765942a4039992336de8dd5db680586e1a206607dd06170ff0a37267a9e01958
+#10 resolve 
+docker.io/library/alpine:3.20@sha256:765942a4039992336de8dd5db680586e1a206607dd06170ff0a37267a9e01958 0.5s 
+done
+#10 DONE 0.5s
+
+#11 [backend-build 1/6] FROM 
+docker.io/library/golang:1.23-alpine@sha256:383395b794dffa5b53012a212365d40c8e37109a626ca30d6151c8348d380b5f
+#11 resolve 
+docker.io/library/golang:1.23-alpine@sha256:383395b794dffa5b53012a212365d40c8e37109a626ca30d6151c8348d380b5f
+#11 resolve docker.io/library/golang:1.23-alpine@sha256:383395b794dffa5b53012a212365d40c8e37109a626ca30d6151
+c8348d380b5f 0.5s done
+#11 DONE 0.6s
+
+#12 [frontend-build 1/6] FROM 
+docker.io/library/node:20-alpine@sha256:658d0f63e501824d6c23e06d4bb95c71e7d704537c9d9272f488ac03a370d448
+#12 resolve 
+docker.io/library/node:20-alpine@sha256:658d0f63e501824d6c23e06d4bb95c71e7d704537c9d9272f488ac03a370d448 
+0.5s done
+#12 DONE 0.6s
+
+#9 [internal] load build context
+#9 transferring context: 27.71kB 0.4s done
+#9 DONE 0.6s
+
+#13 [backend-build 2/6] WORKDIR /app
+#13 CACHED
+
+#14 [backend-build 3/6] COPY go.mod go.sum ./
+#14 CACHED
+
+#15 [frontend-build 2/6] WORKDIR /app/frontend
+#15 CACHED
+
+#16 [frontend-build 3/6] COPY frontend/package*.json ./
+#16 CACHED
+
+#17 [frontend-build 4/6] RUN npm ci
+#17 CACHED
+
+#18 [frontend-build 5/6] COPY frontend/ ./
+#18 CACHED
+
+#19 [backend-build 4/6] RUN go mod download
+#19 CACHED
+
+#20 [backend-build 5/6] COPY . .
+#20 DONE 1.7s
+
+#21 [frontend-build 6/6] RUN npm run build
+#21 3.347 
+#21 3.347 > frontend@0.1.0 build
+#21 3.347 > next build
+#21 3.347 
+#21 ...
+
+#22 [backend-build 6/6] RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/api ./cmd/api/main.go
+#22 ...
+
+#21 [frontend-build 6/6] RUN npm run build
+#21 14.07 Attention: Next.js now collects completely anonymous telemetry regarding usage.
+#21 14.07 This information is used to shape Next.js' roadmap and prioritize features.
+#21 14.07 You can learn more, including how to opt-out if you'd not like to participate in this anonymous 
+program, by visiting the following URL:
+#21 14.07 https://nextjs.org/telemetry
+#21 14.07 
+#21 14.35 Ôû▓ Next.js 16.1.1 (Turbopack)
+#21 14.35 
+#21 15.19 ÔÜá The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: 
+https://nextjs.org/docs/messages/middleware-to-proxy
+#21 15.62   Creating an optimized production build ...
+#21 299.2 Ô£ô Compiled successfully in 4.6min
+#21 299.3   Running TypeScript ...
+#21 ...
+
+#22 [backend-build 6/6] RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/api ./cmd/api/main.go
+#22 DONE 310.6s
+
+#21 [frontend-build 6/6] RUN npm run build
+#21 ...
+
+#23 [stage-2 2/5] WORKDIR /app
+#23 CACHED
+
+#24 [stage-2 3/5] RUN apk add --no-cache ca-certificates wget
+#24 CACHED
+
+#25 [stage-2 4/5] COPY --from=backend-build /out/api /app/api
+#25 DONE 0.8s
+
+#21 [frontend-build 6/6] RUN npm run build
+#21 360.6 Failed to compile.
+#21 360.6 
+#21 360.6 ./src/app/dashboard/contacts/page.tsx:77:24
+#21 360.6 Type error: Cannot find name 'useCallback'.
+#21 360.6 
+#21 360.6 [0m [90m 75 |[39m   })
+#21 360.6  [90m 76 |[39m
+#21 360.6 [31m[1m>[22m[39m[90m 77 |[39m   [36mconst[39m fetchInboxes [33m=[39m 
+useCallback([36masync[39m () [33m=>[39m {
+#21 360.6  [90m    |[39m                        [31m[1m^[22m[39m
+#21 360.6  [90m 78 |[39m     [36mtry[39m {
+#21 360.6  [90m 79 |[39m       [36mconst[39m response [33m=[39m [36mawait[39m 
+api[33m.[39m[36mget[39m([32m'/inboxes'[39m)
+#21 360.6  [90m 80 |[39m       [90m// Suporta formato Chatwoot { payload: [...] } e formato direto 
+[...][39m[0m
+#21 361.0 Next.js build worker exited with code: 1 and signal: null
+#21 ERROR: process "/bin/sh -c npm run build" did not complete successfully: exit code: 1
+------
+ > [frontend-build 6/6] RUN npm run build:
+360.6 Type error: Cannot find name 'useCallback'.
+360.6 
+360.6 [0m [90m 75 |[39m   })
+360.6  [90m 76 |[39m
+360.6 [31m[1m>[22m[39m[90m 77 |[39m   [36mconst[39m fetchInboxes [33m=[39m 
+useCallback([36masync[39m () [33m=>[39m {
+360.6  [90m    |[39m                        [31m[1m^[22m[39m
+360.6  [90m 78 |[39m     [36mtry[39m {
+360.6  [90m 79 |[39m       [36mconst[39m response [33m=[39m [36mawait[39m 
+api[33m.[39m[36mget[39m([32m'/inboxes'[39m)
+360.6  [90m 80 |[39m       [90m// Suporta formato Chatwoot { payload: [...] } e formato direto 
+[...][39m[0m
+361.0 Next.js build worker exited with code: 1 and signal: null
+------
+Dockerfile:13
+--------------------
+  11 |     # Copiar c├│digo do frontend e buildar
+  12 |     COPY frontend/ ./
+  13 | >>> RUN npm run build
+  14 |     
+  15 |     # Stage 2: Build Backend (Go)
+--------------------
+ERROR: failed to build: failed to solve: process "/bin/sh -c npm run build" did not complete successfully: 
+exit code: 1
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/l3qvm7lhb03e6jshimk32vrce
