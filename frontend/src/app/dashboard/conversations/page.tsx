@@ -641,35 +641,7 @@ export default function ConversationsPage() {
     }
   }
 
-  const fetchMessages = async (conversationId: number) => {
-    try {
-      setLoadingMessages(true)
-      const response = await api.get(`/conversations/${conversationId}/messages`)
-      setMessages(response.data.messages || [])
-      
-      // Finalizar loading antes de tentar o scroll para garantir que o DOM renderizou as mensagens
-      setLoadingMessages(false)
 
-      // Scroll imediato para o final após carregar mensagens
-      setTimeout(() => scrollToBottom(true), 50)
-
-      // Marcar como lida no backend (não precisa dar await aqui para não atrasar a UI)
-      api.post(`/conversations/${conversationId}/read`).catch(console.error)
-
-      // Zerar unread_count local após marcar como lida
-      setConversations(prev =>
-        prev.map(conv =>
-          conv.id === conversationId
-            ? { ...conv, unread_count: 0 }
-            : conv
-        )
-      )
-    } catch (error) {
-      console.error('Error fetching messages:', error)
-      toast.error('Erro ao carregar mensagens')
-      setLoadingMessages(false)
-    }
-  }
 
   const sendMessage = async () => {
 
