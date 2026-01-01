@@ -74,12 +74,7 @@ export default function ContactsPage() {
     avatar_url: '',
   })
 
-  useEffect(() => {
-    fetchContacts()
-    fetchInboxes()
-  }, [currentPage, searchQuery])
-
-  const fetchInboxes = async () => {
+  const fetchInboxes = useCallback(async () => {
     try {
       const response = await api.get('/inboxes')
       // Suporta formato Chatwoot { payload: [...] } e formato direto [...]
@@ -88,9 +83,9 @@ export default function ContactsPage() {
     } catch (error) {
       console.error('Erro ao carregar inboxes:', error)
     }
-  }
+  }, [])
 
-  const fetchContacts = async () => {
+  const fetchContacts = useCallback(async () => {
     try {
       setLoading(true)
       const params = new URLSearchParams({
@@ -112,7 +107,12 @@ export default function ContactsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [currentPage, searchQuery])
+
+  useEffect(() => {
+    fetchContacts()
+    fetchInboxes()
+  }, [fetchContacts, fetchInboxes])
 
   const handleCreateContact = async () => {
     if (!formData.name || (!formData.email && !formData.phone_number)) {
@@ -222,7 +222,6 @@ export default function ContactsPage() {
       await api.delete('/contacts-batch', { data: { ids: selectedContacts } })
       toast.success('Contatos excluídos com sucesso!')
       setIsDeleteSelectedOpen(false)
-      setSelectedContacts([])
       setSelectedContacts([])
       fetchContacts()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

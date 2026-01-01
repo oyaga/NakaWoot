@@ -7,7 +7,7 @@ name: string;
 display_name?: string;
 availability: UserAvailability;
 avatar_url?: string;
-ui_settings: Record<string, any>;
+ui_settings: Record<string, unknown>;
 }
 
 export interface Account {

@@ -8,7 +8,7 @@ id: number;
 name: string;
 locale: string;
 domain?: string;
-settings: Record<string, any>;
+settings: Record<string, unknown>;
 }
 
 export interface AccountUser {

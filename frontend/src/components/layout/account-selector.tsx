@@ -19,6 +19,12 @@ PopoverTrigger,
 } from "@/components/ui/popover";
 import { useAuthStore } from "@/store/useAuthStore";
 
+interface Account {
+  id: number
+  name: string
+  settings?: Record<string, unknown>
+}
+
 export function AccountSelector() {
 const [open, setOpen] = React.useState(false);
 const { currentAccount, setCurrentAccount, user } = useAuthStore();
@@ -50,11 +56,11 @@ className="w-full justify-between bg-card border-border hover:bg-background text
 <CommandList>
 <CommandEmpty>Nenhuma conta encontrada.</CommandEmpty>
 <CommandGroup>
-{accounts.map((acc: any) => (
+{accounts.map((acc: Account) => (
 <CommandItem
 key={acc.id}
 onSelect={() => {
-setCurrentAccount(acc);
+setCurrentAccount(acc as any);
 setOpen(false);
 }}
 >

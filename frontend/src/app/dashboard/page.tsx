@@ -66,7 +66,7 @@ export default function DashboardPage() {
     }, 2000) // 2 segundos de delay após mudança
 
     return () => clearTimeout(timeoutId)
-  }, [conversations.length, messages.length, fetchDashboardStats])
+  }, [conversations.length, messages.length, fetchDashboardStats, loading, stats])
 
   const getTrendIcon = (trend: string) => {
     return trend.startsWith('+') || trend.startsWith('-') ? (

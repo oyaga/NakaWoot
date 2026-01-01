@@ -5,6 +5,7 @@
  * Remove lógica local desnecessária e confia no backend
  */
 
+/* eslint-disable @typescript-eslint/no-require-imports */
 const fs = require('fs');
 const path = require('path');
 

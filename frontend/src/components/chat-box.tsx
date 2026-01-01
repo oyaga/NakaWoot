@@ -8,7 +8,16 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 
-export function ChatBox({ conversation }: { conversation: any }) {
+interface Conversation {
+  id: number
+  contact: {
+    name: string
+    avatar_url?: string
+  }
+  last_message?: string
+}
+
+export function ChatBox({ conversation }: { conversation: Conversation }) {
 const [message, setMessage] = useState('');
 
 const handleSendMessage = () => {

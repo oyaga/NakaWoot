@@ -7,8 +7,8 @@ name: string
 avatar_url: string
 email: string
 phone_number: string
-custom_attributes: Record<string, any> // Migration 32
-additional_attributes: Record<string, any>
+custom_attributes: Record<string, unknown> // Migration 32
+additional_attributes: Record<string, unknown>
 }
 
 export interface ConversationSummary {

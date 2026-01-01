@@ -272,23 +272,6 @@ export default function ConversationsPage() {
     })
   }
 
-  const handleMessageUpdated = (message: Message) => {
-    setMessages(prev => prev.map(m =>
-      m.id === message.id ? message : m
-    ))
-  }
-
-  const handleConversationNew = (conversation: Conversation) => {
-    setConversations(prev => {
-      // Verificar se a conversa já existe (evitar duplicatas)
-      const exists = prev.some(c => c.id === conversation.id)
-      if (exists) return prev
-
-      // Adicionar nova conversa no topo da lista
-      return [conversation, ...prev]
-    })
-  }
-
   const handleConversationUpdated = (conversation: Conversation) => {
 
     setConversations(prev => {
@@ -347,6 +330,36 @@ export default function ConversationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inboxId, conversationType])
 
+  const fetchMessages = useCallback(async (conversationId: number) => {
+    try {
+      setLoadingMessages(true)
+      const response = await api.get(`/conversations/${conversationId}/messages`)
+      setMessages(response.data.messages || [])
+      
+      // Finalizar loading antes de tentar o scroll para garantir que o DOM renderizou as mensagens
+      setLoadingMessages(false)
+
+      // Scroll imediato para o final após carregar mensagens
+      setTimeout(() => scrollToBottom(true), 50)
+
+      // Marcar como lida no backend (não precisa dar await aqui para não atrasar a UI)
+      api.post(`/conversations/${conversationId}/read`).catch(console.error)
+
+      // Zerar unread_count local após marcar como lida
+      setConversations(prev =>
+        prev.map(conv =>
+          conv.id === conversationId
+            ? { ...conv, unread_count: 0 }
+            : conv
+        )
+      )
+    } catch (error) {
+      console.error('Error fetching messages:', error)
+      toast.error('Erro ao carregar mensagens')
+      setLoadingMessages(false)
+    }
+  }, [])
+
   useEffect(() => {
     if (activeConversation) {
       fetchMessages(activeConversation)
@@ -363,7 +376,7 @@ export default function ConversationsPage() {
       // Marcar como lida no backend (que atualiza no banco e envia broadcast)
       api.post(`/conversations/${activeConversation}/read`).catch(console.error)
     }
-  }, [activeConversation])
+  }, [activeConversation, fetchMessages])
 
   useEffect(() => {
     scrollToBottom()
@@ -489,28 +502,6 @@ export default function ConversationsPage() {
     } catch (error) {
       console.error('Error deleting conversations:', error)
       toast.error('Erro ao excluir conversas')
-    }
-  }
-
-  const clearInbox = async () => {
-    if (!inboxId) {
-      toast.error('Nenhuma inbox selecionada')
-      return
-    }
-
-    if (!confirm('Tem certeza que deseja limpar TODAS as conversas desta inbox?')) {
-      return
-    }
-
-    try {
-      await api.post(`/inbox-clear/${inboxId}`)
-      setConversations([])
-      setFilteredConversations([])
-      setActiveConversation(null)
-      toast.success('Inbox limpa com sucesso')
-    } catch (error) {
-      console.error('Error clearing inbox:', error)
-      toast.error('Erro ao limpar inbox')
     }
   }
 

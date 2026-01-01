@@ -102,7 +102,7 @@ export function useEventListeners(handlers: EventHandlerMap) {
     return () => {
       unsubscribe()
     }
-  }, []) // Array vazio - apenas registrar uma vez
+  }, [handlers]) // Array vazio - apenas registrar uma vez
 }
 
 /**

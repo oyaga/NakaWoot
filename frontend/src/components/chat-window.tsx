@@ -12,13 +12,12 @@ const activeConv = activeConversation
 const scrollRef = useRef<HTMLDivElement>(null)
 const lastMessageCountRef = useRef(0)
 
-if (!activeConv) return <div className="flex-1 flex items-center justify-center text-muted-foreground">Selecione uma conversa</div>
-
 // Filtrar mensagens apenas da conversa ativa (memoizado para performance)
 const conversationMessages = useMemo(() => {
+  if (!activeConv) return []
   const filtered = messages.filter(m => m.conversation_id === activeConv.id)
   return filtered
-}, [messages, activeConv.id])
+}, [messages, activeConv])
 
 // Unificar e ordenar por data para criar a Timeline Real
 const timeline = useMemo(() => {
@@ -47,12 +46,14 @@ useEffect(() => {
   const timeoutId = setTimeout(scrollToBottom, 100)
 
   return () => clearTimeout(timeoutId)
-}, [activeConv.id, timeline.length])
+}, [activeConv?.id, timeline.length])
 
 // Log quando o componente re-renderiza
 useEffect(() => {
   lastMessageCountRef.current = conversationMessages.length
-}, [activeConv.id, conversationMessages.length])
+}, [activeConv?.id, conversationMessages.length])
+
+if (!activeConv) return <div className="flex-1 flex items-center justify-center text-muted-foreground">Selecione uma conversa</div>
 
 return (
 <div className="flex-1 flex flex-col bg-white">
