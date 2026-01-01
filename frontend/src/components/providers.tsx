@@ -26,12 +26,32 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (error) {
         console.error('[AuthProvider] Error getting session:', error);
-      } else if (session) {
+      } 
+      
+      if (session) {
         setSession(session);
         setUser(session.user as ExtendedUser);
       } else {
-        setSession(null);
-        setUser(null);
+        // Fallback: Verificar localStorage manualmente (para login via backend local)
+        let foundLocal = false;
+        try {
+           const localData = localStorage.getItem('sb-mensager-auth-token');
+           if (localData) {
+              const fakeSession = JSON.parse(localData);
+              if (fakeSession && fakeSession.access_token) {
+                 setSession(fakeSession);
+                 setUser(fakeSession.user as ExtendedUser);
+                 foundLocal = true;
+              }
+           }
+        } catch(e) {
+          console.warn('[AuthProvider] Error parsing local session:', e);
+        }
+
+        if (!foundLocal) {
+          setSession(null);
+          setUser(null);
+        }
       }
     }).finally(() => {
       setAuthCheckComplete(true);

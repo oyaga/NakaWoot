@@ -103,8 +103,22 @@ export default function LoginPage() {
             }
           }
 
+          // Tentar sincronizar com o Supabase Client
+          if (data.token) {
+            const { error: sessionError } = await supabase.auth.setSession({
+              access_token: data.token,
+              refresh_token: data.token
+            })
+            if (sessionError) {
+              console.warn('[LoginPage] Failed to sync session with Supabase:', sessionError)
+            }
+          }
+
           // Salvar sessão no localStorage
           localStorage.setItem('sb-mensager-auth-token', JSON.stringify(fakeSession))
+
+          // Salvar no cookie para o Middleware (Server Side)
+          document.cookie = `sb-mensager-auth-token=${JSON.stringify(fakeSession)}; path=/; max-age=3600; SameSite=Lax`
 
           // Atualizar store
           setSession(fakeSession as unknown as Parameters<typeof setSession>[0])

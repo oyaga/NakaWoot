@@ -42,16 +42,32 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  // Fallback: Verificar cookie manual (para logins via backend local)
+  let isAuthenticated = !!user
+  if (!isAuthenticated) {
+    const localToken = request.cookies.get('sb-mensager-auth-token')
+    if (localToken?.value) {
+      try {
+        const session = JSON.parse(localToken.value)
+        if (session?.access_token) {
+          isAuthenticated = true
+        }
+      } catch (e) {
+        // Cookie inválido
+      }
+    }
+  }
+
   const isAuthPage = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/onboarding')
   const isDashboardPage = request.nextUrl.pathname.startsWith('/dashboard')
 
   // 1. Proteger rotas privadas: Sem usuário -> Login
-  if (!user && isDashboardPage) {
+  if (!isAuthenticated && isDashboardPage) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
   // 2. Redirecionar usuários logados: Com usuário -> Dashboard
-  if (user && isAuthPage) {
+  if (isAuthenticated && isAuthPage) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
