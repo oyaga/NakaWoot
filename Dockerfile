@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1
+# Multi-stage build: Frontend + Backend
 
 # Stage 1: Build Frontend (Next.js)
 FROM node:20-alpine AS frontend-build
