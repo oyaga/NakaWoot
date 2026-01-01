@@ -79,6 +79,7 @@ const PROVIDERS = [
 
 export default function IntegrationsPage() {
   const [integrations, setIntegrations] = useState<Integration[]>([])
+  const [loading, setLoading] = useState(false)
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
